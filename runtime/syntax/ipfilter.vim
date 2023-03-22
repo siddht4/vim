@@ -1,7 +1,7 @@
 " ipfilter syntax file
 " Language: ipfilter configuration file
 " Maintainer: Hendrik Scholz <hendrik@scholz.net>
-" Last Change: 2005 Jan 27
+" Last Change: 2022 Jun 14
 "
 " http://www.wormulon.net/files/misc/ipfilter.vim
 "
@@ -9,11 +9,8 @@
 " not correctly identified.
 " Please send comments to hendrik@scholz.net
 
-" For version 5.x: Clear all syntax items
-" For version 6.x: Quit when a syntax file was already loaded
-if version < 600
-  syntax clear
-elseif exists("b:current_syntax")
+" quit when a syntax file was already loaded
+if exists("b:current_syntax")
   finish
 endif
 
@@ -55,3 +52,4 @@ hi def link IPFNetmask	String
 hi def link IPFAny		Statement
 hi def link IPFProto	Identifier
 
+let b:current_syntax = 'ipfilter'

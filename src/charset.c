@@ -1,4 +1,4 @@
-/* vi:set ts=8 sts=4 sw=4:
+/* vi:set ts=8 sts=4 sw=4 noet:
  *
  * VIM - Vi IMproved	by Bram Moolenaar
  *
@@ -9,37 +9,33 @@
 
 #include "vim.h"
 
-#ifdef FEAT_LINEBREAK
-static int win_chartabsize(win_T *wp, char_u *p, colnr_T col);
+#if defined(HAVE_WCHAR_H)
+# include <wchar.h>	    // for towupper() and towlower()
 #endif
 
-#ifdef FEAT_MBYTE
-# if defined(HAVE_WCHAR_H)
-#  include <wchar.h>	    /* for towupper() and towlower() */
-# endif
-static int win_nolbr_chartabsize(win_T *wp, char_u *s, colnr_T col, int *headp);
-#endif
-
+static int win_nolbr_chartabsize(chartabsize_T *cts, int *headp);
 static unsigned nr2hex(unsigned c);
 
 static int    chartab_initialized = FALSE;
 
-/* b_chartab[] is an array of 32 bytes, each bit representing one of the
- * characters 0-255. */
+// b_chartab[] is an array of 32 bytes, each bit representing one of the
+// characters 0-255.
 #define SET_CHARTAB(buf, c) (buf)->b_chartab[(unsigned)(c) >> 3] |= (1 << ((c) & 0x7))
 #define RESET_CHARTAB(buf, c) (buf)->b_chartab[(unsigned)(c) >> 3] &= ~(1 << ((c) & 0x7))
 #define GET_CHARTAB(buf, c) ((buf)->b_chartab[(unsigned)(c) >> 3] & (1 << ((c) & 0x7)))
 
-/* table used below, see init_chartab() for an explanation */
+// table used below, see init_chartab() for an explanation
 static char_u	g_chartab[256];
 
 /*
  * Flags for g_chartab[].
  */
-#define CT_CELL_MASK	0x07	/* mask: nr of display cells (1, 2 or 4) */
-#define CT_PRINT_CHAR	0x10	/* flag: set for printable chars */
-#define CT_ID_CHAR	0x20	/* flag: set for ID chars */
-#define CT_FNAME_CHAR	0x40	/* flag: set for file name chars */
+#define CT_CELL_MASK	0x07	// mask: nr of display cells (1, 2 or 4)
+#define CT_PRINT_CHAR	0x10	// flag: set for printable chars
+#define CT_ID_CHAR	0x20	// flag: set for ID chars
+#define CT_FNAME_CHAR	0x40	// flag: set for file name chars
+
+static int in_win_border(win_T *wp, colnr_T vcol);
 
 /*
  * Fill g_chartab[].  Also fills curbuf->b_chartab[] with flags for keyword
@@ -76,7 +72,7 @@ init_chartab(void)
     int
 buf_init_chartab(
     buf_T	*buf,
-    int		global)		/* FALSE: only set buf->b_chartab[] */
+    int		global)		// FALSE: only set buf->b_chartab[]
 {
     int		c;
     int		c2;
@@ -91,90 +87,67 @@ buf_init_chartab(
 	 * Set the default size for printable characters:
 	 * From <Space> to '~' is 1 (printable), others are 2 (not printable).
 	 * This also inits all 'isident' and 'isfname' flags to FALSE.
-	 *
-	 * EBCDIC: all chars below ' ' are not printable, all others are
-	 * printable.
 	 */
 	c = 0;
 	while (c < ' ')
 	    g_chartab[c++] = (dy_flags & DY_UHEX) ? 4 : 2;
-#ifdef EBCDIC
-	while (c < 255)
-#else
 	while (c <= '~')
-#endif
 	    g_chartab[c++] = 1 + CT_PRINT_CHAR;
-#ifdef FEAT_FKMAP
-	if (p_altkeymap)
-	{
-	    while (c < YE)
-		g_chartab[c++] = 1 + CT_PRINT_CHAR;
-	}
-#endif
 	while (c < 256)
 	{
-#ifdef FEAT_MBYTE
-	    /* UTF-8: bytes 0xa0 - 0xff are printable (latin1) */
+	    // UTF-8: bytes 0xa0 - 0xff are printable (latin1)
 	    if (enc_utf8 && c >= 0xa0)
 		g_chartab[c++] = CT_PRINT_CHAR + 1;
-	    /* euc-jp characters starting with 0x8e are single width */
+	    // euc-jp characters starting with 0x8e are single width
 	    else if (enc_dbcs == DBCS_JPNU && c == 0x8e)
 		g_chartab[c++] = CT_PRINT_CHAR + 1;
-	    /* other double-byte chars can be printable AND double-width */
+	    // other double-byte chars can be printable AND double-width
 	    else if (enc_dbcs != 0 && MB_BYTE2LEN(c) == 2)
 		g_chartab[c++] = CT_PRINT_CHAR + 2;
 	    else
-#endif
-		/* the rest is unprintable by default */
+		// the rest is unprintable by default
 		g_chartab[c++] = (dy_flags & DY_UHEX) ? 4 : 2;
 	}
 
-#ifdef FEAT_MBYTE
-	/* Assume that every multi-byte char is a filename character. */
+	// Assume that every multi-byte char is a filename character.
 	for (c = 1; c < 256; ++c)
 	    if ((enc_dbcs != 0 && MB_BYTE2LEN(c) > 1)
 		    || (enc_dbcs == DBCS_JPNU && c == 0x8e)
 		    || (enc_utf8 && c >= 0xa0))
 		g_chartab[c] |= CT_FNAME_CHAR;
-#endif
     }
 
     /*
      * Init word char flags all to FALSE
      */
-    vim_memset(buf->b_chartab, 0, (size_t)32);
-#ifdef FEAT_MBYTE
+    CLEAR_FIELD(buf->b_chartab);
     if (enc_dbcs != 0)
 	for (c = 0; c < 256; ++c)
 	{
-	    /* double-byte characters are probably word characters */
+	    // double-byte characters are probably word characters
 	    if (MB_BYTE2LEN(c) == 2)
 		SET_CHARTAB(buf, c);
 	}
-#endif
 
-#ifdef FEAT_LISP
     /*
      * In lisp mode the '-' character is included in keywords.
      */
     if (buf->b_p_lisp)
 	SET_CHARTAB(buf, '-');
-#endif
 
-    /* Walk through the 'isident', 'iskeyword', 'isfname' and 'isprint'
-     * options Each option is a list of characters, character numbers or
-     * ranges, separated by commas, e.g.: "200-210,x,#-178,-"
-     */
+    // Walk through the 'isident', 'iskeyword', 'isfname' and 'isprint'
+    // options Each option is a list of characters, character numbers or
+    // ranges, separated by commas, e.g.: "200-210,x,#-178,-"
     for (i = global ? 0 : 3; i <= 3; ++i)
     {
 	if (i == 0)
-	    p = p_isi;		/* first round: 'isident' */
+	    p = p_isi;		// first round: 'isident'
 	else if (i == 1)
-	    p = p_isp;		/* second round: 'isprint' */
+	    p = p_isp;		// second round: 'isprint'
 	else if (i == 2)
-	    p = p_isf;		/* third round: 'isfname' */
-	else	/* i == 3 */
-	    p = buf->b_p_isk;	/* fourth round: 'iskeyword' */
+	    p = p_isf;		// third round: 'isfname'
+	else	// i == 3
+	    p = buf->b_p_isk;	// fourth round: 'iskeyword'
 
 	while (*p)
 	{
@@ -187,12 +160,9 @@ buf_init_chartab(
 	    }
 	    if (VIM_ISDIGIT(*p))
 		c = getdigits(&p);
-	    else
-#ifdef FEAT_MBYTE
-		 if (has_mbyte)
+	    else if (has_mbyte)
 		c = mb_ptr2char_adv(&p);
 	    else
-#endif
 		c = *p++;
 	    c2 = -1;
 	    if (*p == '-' && p[1] != NUL)
@@ -200,19 +170,16 @@ buf_init_chartab(
 		++p;
 		if (VIM_ISDIGIT(*p))
 		    c2 = getdigits(&p);
-		else
-#ifdef FEAT_MBYTE
-		     if (has_mbyte)
+		else if (has_mbyte)
 		    c2 = mb_ptr2char_adv(&p);
 		else
-#endif
 		    c2 = *p++;
 	    }
 	    if (c <= 0 || c >= 256 || (c2 < c && c2 != -1) || c2 >= 256
 						 || !(*p == NUL || *p == ','))
 		return FAIL;
 
-	    if (c2 == -1)	/* not a range */
+	    if (c2 == -1)	// not a range
 	    {
 		/*
 		 * A single '@' (not "@-@"):
@@ -231,39 +198,24 @@ buf_init_chartab(
 	    }
 	    while (c <= c2)
 	    {
-		/* Use the MB_ functions here, because isalpha() doesn't
-		 * work properly when 'encoding' is "latin1" and the locale is
-		 * "C".  */
-		if (!do_isalpha || MB_ISLOWER(c) || MB_ISUPPER(c)
-#ifdef FEAT_FKMAP
-			|| (p_altkeymap && (F_isalpha(c) || F_isdigit(c)))
-#endif
-			    )
+		// Use the MB_ functions here, because isalpha() doesn't
+		// work properly when 'encoding' is "latin1" and the locale is
+		// "C".
+		if (!do_isalpha || MB_ISLOWER(c) || MB_ISUPPER(c))
 		{
-		    if (i == 0)			/* (re)set ID flag */
+		    if (i == 0)			// (re)set ID flag
 		    {
 			if (tilde)
 			    g_chartab[c] &= ~CT_ID_CHAR;
 			else
 			    g_chartab[c] |= CT_ID_CHAR;
 		    }
-		    else if (i == 1)		/* (re)set printable */
+		    else if (i == 1)		// (re)set printable
 		    {
-			if ((c < ' '
-#ifndef EBCDIC
-				    || c > '~'
-#endif
-#ifdef FEAT_FKMAP
-				    || (p_altkeymap
-					&& (F_isalpha(c) || F_isdigit(c)))
-#endif
-			    )
-#ifdef FEAT_MBYTE
-				/* For double-byte we keep the cell width, so
-				 * that we can detect it from the first byte. */
-				&& !(enc_dbcs && MB_BYTE2LEN(c) == 2)
-#endif
-			   )
+			if ((c < ' ' || c > '~'
+				// For double-byte we keep the cell width, so
+				// that we can detect it from the first byte.
+			    ) && !(enc_dbcs && MB_BYTE2LEN(c) == 2))
 			{
 			    if (tilde)
 			    {
@@ -273,19 +225,20 @@ buf_init_chartab(
 			    }
 			    else
 			    {
-				g_chartab[c] = (g_chartab[c] & ~CT_CELL_MASK) + 1;
+				g_chartab[c] = (g_chartab[c] & ~CT_CELL_MASK)
+									   + 1;
 				g_chartab[c] |= CT_PRINT_CHAR;
 			    }
 			}
 		    }
-		    else if (i == 2)		/* (re)set fname flag */
+		    else if (i == 2)		// (re)set fname flag
 		    {
 			if (tilde)
 			    g_chartab[c] &= ~CT_FNAME_CHAR;
 			else
 			    g_chartab[c] |= CT_FNAME_CHAR;
 		    }
-		    else /* i == 3 */		/* (re)set keyword flag */
+		    else // i == 3		 (re)set keyword flag
 		    {
 			if (tilde)
 			    RESET_CHARTAB(buf, c);
@@ -299,7 +252,7 @@ buf_init_chartab(
 	    c = *p;
 	    p = skip_to_option_part(p);
 	    if (c == ',' && *p == NUL)
-		/* Trailing comma is not allowed. */
+		// Trailing comma is not allowed.
 		return FAIL;
 	}
     }
@@ -317,21 +270,19 @@ trans_characters(
     char_u	*buf,
     int		bufsize)
 {
-    int		len;		/* length of string needing translation */
-    int		room;		/* room in buffer after string */
-    char_u	*trs;		/* translated character */
-    int		trs_len;	/* length of trs[] */
+    int		len;		// length of string needing translation
+    int		room;		// room in buffer after string
+    char_u	*trs;		// translated character
+    int		trs_len;	// length of trs[]
 
     len = (int)STRLEN(buf);
     room = bufsize - len;
     while (*buf != 0)
     {
-# ifdef FEAT_MBYTE
-	/* Assume a multi-byte character doesn't need translation. */
+	// Assume a multi-byte character doesn't need translation.
 	if (has_mbyte && (trs_len = (*mb_ptr2len)(buf)) > 1)
 	    len -= trs_len;
 	else
-# endif
 	{
 	    trs = transchar_byte(*buf);
 	    trs_len = (int)STRLEN(trs);
@@ -349,8 +300,6 @@ trans_characters(
     }
 }
 
-#if defined(FEAT_EVAL) || defined(FEAT_TITLE) || defined(FEAT_INS_EXPAND) \
-	|| defined(PROTO)
 /*
  * Translate a string into allocated memory, replacing special chars with
  * printable chars.  Returns NULL when out of memory.
@@ -360,16 +309,13 @@ transstr(char_u *s)
 {
     char_u	*res;
     char_u	*p;
-#ifdef FEAT_MBYTE
     int		l, len, c;
     char_u	hexbuf[11];
-#endif
 
-#ifdef FEAT_MBYTE
     if (has_mbyte)
     {
-	/* Compute the length of the result, taking account of unprintable
-	 * multi-byte characters. */
+	// Compute the length of the result, taking account of unprintable
+	// multi-byte characters.
 	len = 0;
 	p = s;
 	while (*p != NUL)
@@ -392,40 +338,36 @@ transstr(char_u *s)
 		if (l > 0)
 		    len += l;
 		else
-		    len += 4;	/* illegal byte sequence */
+		    len += 4;	// illegal byte sequence
 	    }
 	}
-	res = alloc((unsigned)(len + 1));
+	res = alloc(len + 1);
     }
     else
-#endif
-	res = alloc((unsigned)(vim_strsize(s) + 1));
-    if (res != NULL)
+	res = alloc(vim_strsize(s) + 1);
+
+    if (res == NULL)
+	return NULL;
+
+    *res = NUL;
+    p = s;
+    while (*p != NUL)
     {
-	*res = NUL;
-	p = s;
-	while (*p != NUL)
+	if (has_mbyte && (l = (*mb_ptr2len)(p)) > 1)
 	{
-#ifdef FEAT_MBYTE
-	    if (has_mbyte && (l = (*mb_ptr2len)(p)) > 1)
-	    {
-		c = (*mb_ptr2char)(p);
-		if (vim_isprintc(c))
-		    STRNCAT(res, p, l);	/* append printable multi-byte char */
-		else
-		    transchar_hex(res + STRLEN(res), c);
-		p += l;
-	    }
+	    c = (*mb_ptr2char)(p);
+	    if (vim_isprintc(c))
+		STRNCAT(res, p, l);	// append printable multi-byte char
 	    else
-#endif
-		STRCAT(res, transchar_byte(*p++));
+		transchar_hex(res + STRLEN(res), c);
+	    p += l;
 	}
+	else
+	    STRCAT(res, transchar_byte(*p++));
     }
     return res;
 }
-#endif
 
-#if defined(FEAT_SYN_HL) || defined(FEAT_INS_EXPAND) || defined(PROTO)
 /*
  * Convert the string "str[orglen]" to do ignore-case comparing.  Uses the
  * current locale.
@@ -444,11 +386,11 @@ str_foldcase(
     int		len = orglen;
 
 #define GA_CHAR(i)  ((char_u *)ga.ga_data)[i]
-#define GA_PTR(i)   ((char_u *)ga.ga_data + i)
+#define GA_PTR(i)   ((char_u *)ga.ga_data + (i))
 #define STR_CHAR(i)  (buf == NULL ? GA_CHAR(i) : buf[i])
-#define STR_PTR(i)   (buf == NULL ? GA_PTR(i) : buf + i)
+#define STR_PTR(i)   (buf == NULL ? GA_PTR(i) : buf + (i))
 
-    /* Copy "str" into "buf" or allocated memory, unmodified. */
+    // Copy "str" into "buf" or allocated memory, unmodified.
     if (buf == NULL)
     {
 	ga_init2(&ga, 1, 10);
@@ -459,7 +401,7 @@ str_foldcase(
     }
     else
     {
-	if (len >= buflen)	    /* Ugly! */
+	if (len >= buflen)	    // Ugly!
 	    len = buflen - 1;
 	mch_memmove(buf, str, (size_t)len);
     }
@@ -468,11 +410,10 @@ str_foldcase(
     else
 	buf[len] = NUL;
 
-    /* Make each character lower case. */
+    // Make each character lower case.
     i = 0;
     while (STR_CHAR(i) != NUL)
     {
-#ifdef FEAT_MBYTE
 	if (enc_utf8 || (has_mbyte && MB_BYTE2LEN(STR_CHAR(i)) > 1))
 	{
 	    if (enc_utf8)
@@ -481,15 +422,15 @@ str_foldcase(
 		int	olen = utf_ptr2len(STR_PTR(i));
 		int	lc = utf_tolower(c);
 
-		/* Only replace the character when it is not an invalid
-		 * sequence (ASCII character or more than one byte) and
-		 * utf_tolower() doesn't return the original character. */
+		// Only replace the character when it is not an invalid
+		// sequence (ASCII character or more than one byte) and
+		// utf_tolower() doesn't return the original character.
 		if ((c < 0x80 || olen > 1) && c != lc)
 		{
 		    int	    nlen = utf_char2len(lc);
 
-		    /* If the byte length changes need to shift the following
-		     * characters forward or backward. */
+		    // If the byte length changes need to shift the following
+		    // characters forward or backward.
 		    if (olen != nlen)
 		    {
 			if (nlen > olen)
@@ -498,7 +439,7 @@ str_foldcase(
 				    ? ga_grow(&ga, nlen - olen + 1) == FAIL
 				    : len + nlen - olen >= buflen)
 			    {
-				/* out of memory, keep old char */
+				// out of memory, keep old char
 				lc = c;
 				nlen = olen;
 			    }
@@ -520,11 +461,10 @@ str_foldcase(
 		    (void)utf_char2bytes(lc, STR_PTR(i));
 		}
 	    }
-	    /* skip to next multi-byte char */
+	    // skip to next multi-byte char
 	    i += (*mb_ptr2len)(STR_PTR(i));
 	}
 	else
-#endif
 	{
 	    if (buf == NULL)
 		GA_CHAR(i) = TOLOWER_LOC(GA_CHAR(i));
@@ -538,7 +478,6 @@ str_foldcase(
 	return (char_u *)ga.ga_data;
     return buf;
 }
-#endif
 
 /*
  * Catch 22: g_chartab[] can't be initialized before the options are
@@ -548,128 +487,101 @@ str_foldcase(
  * Also doesn't work for the first byte of a multi-byte, "c" must be a
  * character!
  */
-static char_u	transchar_buf[7];
+static char_u	transchar_charbuf[7];
 
     char_u *
 transchar(int c)
 {
+    return transchar_buf(curbuf, c);
+}
+
+    char_u *
+transchar_buf(buf_T *buf, int c)
+{
     int			i;
 
     i = 0;
-    if (IS_SPECIAL(c))	    /* special key code, display as ~@ char */
+    if (IS_SPECIAL(c))	    // special key code, display as ~@ char
     {
-	transchar_buf[0] = '~';
-	transchar_buf[1] = '@';
+	transchar_charbuf[0] = '~';
+	transchar_charbuf[1] = '@';
 	i = 2;
 	c = K_SECOND(c);
     }
 
-    if ((!chartab_initialized && (
-#ifdef EBCDIC
-		    (c >= 64 && c < 255)
-#else
-		    (c >= ' ' && c <= '~')
-#endif
-#ifdef FEAT_FKMAP
-			|| F_ischar(c)
-#endif
-		)) || (c < 256 && vim_isprintc_strict(c)))
+    if ((!chartab_initialized && ((c >= ' ' && c <= '~')))
+					|| (c < 256 && vim_isprintc_strict(c)))
     {
-	/* printable character */
-	transchar_buf[i] = c;
-	transchar_buf[i + 1] = NUL;
+	// printable character
+	transchar_charbuf[i] = c;
+	transchar_charbuf[i + 1] = NUL;
     }
     else
-	transchar_nonprint(transchar_buf + i, c);
-    return transchar_buf;
+	transchar_nonprint(buf, transchar_charbuf + i, c);
+    return transchar_charbuf;
 }
 
-#if defined(FEAT_MBYTE) || defined(PROTO)
 /*
  * Like transchar(), but called with a byte instead of a character.  Checks
- * for an illegal UTF-8 byte.
+ * for an illegal UTF-8 byte.  Uses 'fileformat' of the current buffer.
  */
     char_u *
 transchar_byte(int c)
 {
-    if (enc_utf8 && c >= 0x80)
-    {
-	transchar_nonprint(transchar_buf, c);
-	return transchar_buf;
-    }
-    return transchar(c);
+    return transchar_byte_buf(curbuf, c);
 }
-#endif
 
 /*
+ * Like transchar_buf(), but called with a byte instead of a character.  Checks
+ * for an illegal UTF-8 byte.  Uses 'fileformat' of "buf", unless it is NULL.
+ */
+    char_u *
+transchar_byte_buf(buf_T *buf, int c)
+{
+    if (enc_utf8 && c >= 0x80)
+    {
+	transchar_nonprint(buf, transchar_charbuf, c);
+	return transchar_charbuf;
+    }
+    return transchar_buf(buf, c);
+}
+/*
  * Convert non-printable character to two or more printable characters in
- * "buf[]".  "buf" needs to be able to hold five bytes.
+ * "charbuf[]".  "charbuf" needs to be able to hold five bytes.
  * Does NOT work for multi-byte characters, c must be <= 255.
  */
     void
-transchar_nonprint(char_u *buf, int c)
+transchar_nonprint(buf_T *buf, char_u *charbuf, int c)
 {
     if (c == NL)
-	c = NUL;		/* we use newline in place of a NUL */
-    else if (c == CAR && get_fileformat(curbuf) == EOL_MAC)
-	c = NL;			/* we use CR in place of  NL in this case */
+	c = NUL;		// we use newline in place of a NUL
+    else if (buf != NULL && c == CAR && get_fileformat(buf) == EOL_MAC)
+	c = NL;			// we use CR in place of  NL in this case
 
-    if (dy_flags & DY_UHEX)		/* 'display' has "uhex" */
-	transchar_hex(buf, c);
+    if (dy_flags & DY_UHEX)		// 'display' has "uhex"
+	transchar_hex(charbuf, c);
 
-#ifdef EBCDIC
-    /* For EBCDIC only the characters 0-63 and 255 are not printable */
-    else if (CtrlChar(c) != 0 || c == DEL)
-#else
-    else if (c <= 0x7f)				/* 0x00 - 0x1f and 0x7f */
-#endif
+    else if (c <= 0x7f)			// 0x00 - 0x1f and 0x7f
     {
-	buf[0] = '^';
-#ifdef EBCDIC
-	if (c == DEL)
-	    buf[1] = '?';		/* DEL displayed as ^? */
-	else
-	    buf[1] = CtrlChar(c);
-#else
-	buf[1] = c ^ 0x40;		/* DEL displayed as ^? */
-#endif
-
-	buf[2] = NUL;
+	charbuf[0] = '^';
+	charbuf[1] = c ^ 0x40;		// DEL displayed as ^?
+	charbuf[2] = NUL;
     }
-#ifdef FEAT_MBYTE
-    else if (enc_utf8 && c >= 0x80)
+    else if (enc_utf8)
     {
-	transchar_hex(buf, c);
+	transchar_hex(charbuf, c);
     }
-#endif
-#ifndef EBCDIC
-    else if (c >= ' ' + 0x80 && c <= '~' + 0x80)    /* 0xa0 - 0xfe */
+    else if (c >= ' ' + 0x80 && c <= '~' + 0x80)    // 0xa0 - 0xfe
     {
-	buf[0] = '|';
-	buf[1] = c - 0x80;
-	buf[2] = NUL;
+	charbuf[0] = '|';
+	charbuf[1] = c - 0x80;
+	charbuf[2] = NUL;
     }
-#else
-    else if (c < 64)
+    else					    // 0x80 - 0x9f and 0xff
     {
-	buf[0] = '~';
-	buf[1] = MetaChar(c);
-	buf[2] = NUL;
-    }
-#endif
-    else					    /* 0x80 - 0x9f and 0xff */
-    {
-	/*
-	 * TODO: EBCDIC I don't know what to do with this chars, so I display
-	 * them as '~?' for now
-	 */
-	buf[0] = '~';
-#ifdef EBCDIC
-	buf[1] = '?';			/* 0xff displayed as ~? */
-#else
-	buf[1] = (c - 0x80) ^ 0x40;	/* 0xff displayed as ~? */
-#endif
-	buf[2] = NUL;
+	charbuf[0] = '~';
+	charbuf[1] = (c - 0x80) ^ 0x40;	// 0xff displayed as ~?
+	charbuf[2] = NUL;
     }
 }
 
@@ -679,13 +591,11 @@ transchar_hex(char_u *buf, int c)
     int		i = 0;
 
     buf[0] = '<';
-#ifdef FEAT_MBYTE
     if (c > 255)
     {
 	buf[++i] = nr2hex((unsigned)c >> 12);
 	buf[++i] = nr2hex((unsigned)c >> 8);
     }
-#endif
     buf[++i] = nr2hex((unsigned)c >> 4);
     buf[++i] = nr2hex((unsigned)c);
     buf[++i] = '>';
@@ -716,10 +626,8 @@ nr2hex(unsigned c)
     int
 byte2cells(int b)
 {
-#ifdef FEAT_MBYTE
     if (enc_utf8 && b >= 0x80)
 	return 0;
-#endif
     return (g_chartab[b] & CT_CELL_MASK);
 }
 
@@ -733,14 +641,13 @@ char2cells(int c)
 {
     if (IS_SPECIAL(c))
 	return char2cells(K_SECOND(c)) + 2;
-#ifdef FEAT_MBYTE
     if (c >= 0x80)
     {
-	/* UTF-8: above 0x80 need to check the value */
+	// UTF-8: above 0x80 need to check the value
 	if (enc_utf8)
 	    return utf_char2cells(c);
-	/* DBCS: double-byte means double-width, except for euc-jp with first
-	 * byte 0x8e */
+	// DBCS: double-byte means double-width, except for euc-jp with first
+	// byte 0x8e
 	if (enc_dbcs != 0 && c >= 0x100)
 	{
 	    if (enc_dbcs == DBCS_JPNU && ((unsigned)c >> 8) == 0x8e)
@@ -748,7 +655,6 @@ char2cells(int c)
 	    return 2;
 	}
     }
-#endif
     return (g_chartab[c & 0xff] & CT_CELL_MASK);
 }
 
@@ -759,12 +665,13 @@ char2cells(int c)
     int
 ptr2cells(char_u *p)
 {
-#ifdef FEAT_MBYTE
-    /* For UTF-8 we need to look at more bytes if the first byte is >= 0x80. */
+    if (!has_mbyte)
+	return byte2cells(*p);
+
+    // For UTF-8 we need to look at more bytes if the first byte is >= 0x80.
     if (enc_utf8 && *p >= 0x80)
 	return utf_ptr2cells(p);
-    /* For DBCS we can tell the cell count from the first byte. */
-#endif
+    // For DBCS we can tell the cell count from the first byte.
     return (g_chartab[*p] & CT_CELL_MASK);
 }
 
@@ -789,19 +696,13 @@ vim_strnsize(char_u *s, int len)
 
     while (*s != NUL && --len >= 0)
     {
-#ifdef FEAT_MBYTE
-	if (has_mbyte)
-	{
-	    int	    l = (*mb_ptr2len)(s);
+	int	    l = (*mb_ptr2len)(s);
 
-	    size += ptr2cells(s);
-	    s += l;
-	    len -= l - 1;
-	}
-	else
-#endif
-	    size += byte2cells(*s++);
+	size += ptr2cells(s);
+	s += l;
+	len -= l - 1;
     }
+
     return size;
 }
 
@@ -812,8 +713,17 @@ vim_strnsize(char_u *s, int len)
  * Also see getvcol() below.
  */
 
-#define RET_WIN_BUF_CHARTABSIZE(wp, buf, p, col) \
-    if (*(p) == TAB && (!(wp)->w_p_list || lcs_tab1)) \
+#ifdef FEAT_VARTABS
+# define RET_WIN_BUF_CHARTABSIZE(wp, buf, p, col) \
+    if (*(p) == TAB && (!(wp)->w_p_list || (wp)->w_lcs_chars.tab1)) \
+    { \
+	return tabstop_padding(col, (buf)->b_p_ts, (buf)->b_p_vts_array); \
+    } \
+    else \
+	return ptr2cells(p);
+#else
+# define RET_WIN_BUF_CHARTABSIZE(wp, buf, p, col) \
+    if (*(p) == TAB && (!(wp)->w_p_list || wp->w_lcs_chars.tab1)) \
     { \
 	int ts; \
 	ts = (buf)->b_p_ts; \
@@ -821,6 +731,7 @@ vim_strnsize(char_u *s, int len)
     } \
     else \
 	return ptr2cells(p);
+#endif
 
     int
 chartabsize(char_u *p, colnr_T col)
@@ -837,42 +748,87 @@ win_chartabsize(win_T *wp, char_u *p, colnr_T col)
 #endif
 
 /*
- * Return the number of characters the string 's' will take on the screen,
+ * Return the number of characters the string "s" will take on the screen,
  * taking into account the size of a tab.
+ * Does not handle text properties, since "s" is not a buffer line.
  */
     int
-linetabsize(char_u *s)
+linetabsize_str(char_u *s)
 {
     return linetabsize_col(0, s);
 }
 
 /*
- * Like linetabsize(), but starting at column "startcol".
+ * Like linetabsize_str(), but "s" starts at column "startcol".
  */
     int
 linetabsize_col(int startcol, char_u *s)
 {
-    colnr_T	col = startcol;
-    char_u	*line = s; /* pointer to start of line, for breakindent */
+    chartabsize_T cts;
 
-    while (*s != NUL)
-	col += lbr_chartabsize_adv(line, &s, col);
-    return (int)col;
+    init_chartabsize_arg(&cts, curwin, 0, startcol, s, s);
+    while (*cts.cts_ptr != NUL)
+	cts.cts_vcol += lbr_chartabsize_adv(&cts);
+#ifdef FEAT_PROP_POPUP
+    if (cts.cts_has_prop_with_text && cts.cts_ptr == cts.cts_line)
+    {
+	// check for virtual text in an empty line
+	(void)lbr_chartabsize_adv(&cts);
+	cts.cts_vcol += cts.cts_cur_text_width;
+    }
+#endif
+    clear_chartabsize_arg(&cts);
+    return (int)cts.cts_vcol;
 }
 
 /*
- * Like linetabsize(), but for a given window instead of the current one.
+ * Like linetabsize_str(), but for a given window instead of the current one.
  */
     int
-win_linetabsize(win_T *wp, char_u *line, colnr_T len)
+win_linetabsize(win_T *wp, linenr_T lnum, char_u *line, colnr_T len)
 {
-    colnr_T	col = 0;
-    char_u	*s;
+    chartabsize_T cts;
 
-    for (s = line; *s != NUL && (len == MAXCOL || s < line + len);
-								mb_ptr_adv(s))
-	col += win_lbr_chartabsize(wp, line, s, col, NULL);
-    return (int)col;
+    init_chartabsize_arg(&cts, wp, lnum, 0, line, line);
+    win_linetabsize_cts(&cts, len);
+    clear_chartabsize_arg(&cts);
+    return (int)cts.cts_vcol;
+}
+
+/*
+ * Return the number of cells line "lnum" of window "wp" will take on the
+ * screen, taking into account the size of a tab and text properties.
+ */
+  int
+linetabsize(win_T *wp, linenr_T lnum)
+{
+    return win_linetabsize(wp, lnum,
+		       ml_get_buf(wp->w_buffer, lnum, FALSE), (colnr_T)MAXCOL);
+}
+
+    void
+win_linetabsize_cts(chartabsize_T *cts, colnr_T len)
+{
+#ifdef FEAT_PROP_POPUP
+    cts->cts_with_trailing = len == MAXCOL;
+#endif
+    for ( ; *cts->cts_ptr != NUL && (len == MAXCOL || cts->cts_ptr < cts->cts_line + len);
+						      MB_PTR_ADV(cts->cts_ptr))
+	cts->cts_vcol += win_lbr_chartabsize(cts, NULL);
+#ifdef FEAT_PROP_POPUP
+    // check for a virtual text on an empty line
+    if (cts->cts_has_prop_with_text && *cts->cts_ptr == NUL
+					      && cts->cts_ptr == cts->cts_line)
+    {
+	(void)win_lbr_chartabsize(cts, NULL);
+	cts->cts_vcol += cts->cts_cur_text_width;
+
+	// when properties are above or below the empty line must also be
+	// counted
+	if (cts->cts_prop_lines > 0)
+	    ++cts->cts_vcol;
+    }
+#endif
 }
 
 /*
@@ -886,8 +842,18 @@ vim_isIDc(int c)
 }
 
 /*
+ * Like vim_isIDc() but not using the 'isident' option: letters, numbers and
+ * underscore.
+ */
+    int
+vim_isNormalIDc(int c)
+{
+    return ASCII_ISALNUM(c) || c == '_';
+}
+
+/*
  * return TRUE if 'c' is a keyword character: Letters and characters from
- * 'iskeyword' option for current buffer.
+ * 'iskeyword' option for the current buffer.
  * For multi-byte characters mb_get_class() is used (builtin rules).
  */
     int
@@ -899,16 +865,15 @@ vim_iswordc(int c)
     int
 vim_iswordc_buf(int c, buf_T *buf)
 {
-#ifdef FEAT_MBYTE
     if (c >= 0x100)
     {
 	if (enc_dbcs != 0)
 	    return dbcs_class((unsigned)c >> 8, (unsigned)(c & 0xff)) >= 2;
 	if (enc_utf8)
-	    return utf_class(c) >= 2;
+	    return utf_class_buf(c, buf) >= 2;
+	return FALSE;
     }
-#endif
-    return (c > 0 && c < 0x100 && GET_CHARTAB(buf, c) != 0);
+    return (c > 0 && GET_CHARTAB(buf, c) != 0);
 }
 
 /*
@@ -917,32 +882,42 @@ vim_iswordc_buf(int c, buf_T *buf)
     int
 vim_iswordp(char_u *p)
 {
-#ifdef FEAT_MBYTE
-    if (has_mbyte && MB_BYTE2LEN(*p) > 1)
-	return mb_get_class(p) >= 2;
-#endif
-    return GET_CHARTAB(curbuf, *p) != 0;
+    return vim_iswordp_buf(p, curbuf);
 }
 
     int
 vim_iswordp_buf(char_u *p, buf_T *buf)
 {
-#ifdef FEAT_MBYTE
-    if (has_mbyte && MB_BYTE2LEN(*p) > 1)
-	return mb_get_class(p) >= 2;
-#endif
-    return (GET_CHARTAB(buf, *p) != 0);
+    int	c = *p;
+
+    if (has_mbyte && MB_BYTE2LEN(c) > 1)
+	c = (*mb_ptr2char)(p);
+    return vim_iswordc_buf(c, buf);
 }
 
 /*
- * return TRUE if 'c' is a valid file-name character
+ * Return TRUE if 'c' is a valid file-name character as specified with the
+ * 'isfname' option.
  * Assume characters above 0x100 are valid (multi-byte).
+ * To be used for commands like "gf".
  */
     int
 vim_isfilec(int c)
 {
     return (c >= 0x100 || (c > 0 && (g_chartab[c] & CT_FNAME_CHAR)));
 }
+
+#if defined(FEAT_SPELL) || defined(PROTO)
+/*
+ * Return TRUE if 'c' is a valid file-name character, including characters left
+ * out of 'isfname' to make "gf" work, such as comma, space, '@', etc.
+ */
+    int
+vim_is_fname_char(int c)
+{
+    return vim_isfilec(c) || c == ',' || c == ' ' || c == '@';
+}
+#endif
 
 /*
  * return TRUE if 'c' is a valid file-name character or a wildcard character
@@ -961,17 +936,15 @@ vim_isfilec_or_wc(int c)
 }
 
 /*
- * return TRUE if 'c' is a printable character
+ * Return TRUE if 'c' is a printable character.
  * Assume characters above 0x100 are printable (multi-byte), except for
  * Unicode.
  */
     int
 vim_isprintc(int c)
 {
-#ifdef FEAT_MBYTE
     if (enc_utf8 && c >= 0x100)
 	return utf_printable(c);
-#endif
     return (c >= 0x100 || (c > 0 && (g_chartab[c] & CT_PRINT_CHAR)));
 }
 
@@ -982,36 +955,136 @@ vim_isprintc(int c)
     int
 vim_isprintc_strict(int c)
 {
-#ifdef FEAT_MBYTE
     if (enc_dbcs != 0 && c < 0x100 && MB_BYTE2LEN(c) > 1)
 	return FALSE;
     if (enc_utf8 && c >= 0x100)
 	return utf_printable(c);
-#endif
     return (c >= 0x100 || (c > 0 && (g_chartab[c] & CT_PRINT_CHAR)));
 }
 
 /*
- * like chartabsize(), but also check for line breaks on the screen
+ * Prepare the structure passed to chartabsize functions.
+ * "line" is the start of the line, "ptr" is the first relevant character.
+ * When "lnum" is zero do not use text properties that insert text.
+ */
+    void
+init_chartabsize_arg(
+	chartabsize_T	*cts,
+	win_T		*wp,
+	linenr_T	lnum UNUSED,
+	colnr_T		col,
+	char_u		*line,
+	char_u		*ptr)
+{
+    CLEAR_POINTER(cts);
+    cts->cts_win = wp;
+    cts->cts_vcol = col;
+    cts->cts_line = line;
+    cts->cts_ptr = ptr;
+#ifdef FEAT_PROP_POPUP
+    if (lnum > 0 && !ignore_text_props)
+    {
+	char_u	*prop_start;
+	int	count;
+
+	count = get_text_props(wp->w_buffer, lnum, &prop_start, FALSE);
+	cts->cts_text_prop_count = count;
+	if (count > 0)
+	{
+	    // Make a copy of the properties, so that they are properly
+	    // aligned.  Make it twice as long for the sorting below.
+	    cts->cts_text_props = ALLOC_MULT(textprop_T, count * 2);
+	    if (cts->cts_text_props == NULL)
+		cts->cts_text_prop_count = 0;
+	    else
+	    {
+		int	i;
+
+		mch_memmove(cts->cts_text_props + count, prop_start,
+						   count * sizeof(textprop_T));
+		for (i = 0; i < count; ++i)
+		{
+		    textprop_T *tp = cts->cts_text_props + i + count;
+		    if (tp->tp_id < 0
+				     && text_prop_type_valid(wp->w_buffer, tp))
+		    {
+			cts->cts_has_prop_with_text = TRUE;
+			break;
+		    }
+		}
+		if (!cts->cts_has_prop_with_text)
+		{
+		    // won't use the text properties, free them
+		    VIM_CLEAR(cts->cts_text_props);
+		    cts->cts_text_prop_count = 0;
+		}
+		else
+		{
+		    int	    *text_prop_idxs;
+
+		    // Need to sort the array to get any truncation right.
+		    // Do the sorting in the second part of the array, then
+		    // move the sorted props to the first part of the array.
+		    text_prop_idxs = ALLOC_MULT(int, count);
+		    if (text_prop_idxs != NULL)
+		    {
+			for (i = 0; i < count; ++i)
+			    text_prop_idxs[i] = i + count;
+			sort_text_props(curbuf, cts->cts_text_props,
+							text_prop_idxs, count);
+			// Here we want the reverse order.
+			for (i = 0; i < count; ++i)
+			    cts->cts_text_props[count - i - 1] =
+					cts->cts_text_props[text_prop_idxs[i]];
+			vim_free(text_prop_idxs);
+		    }
+		}
+	    }
+	}
+    }
+#endif
+}
+
+/*
+ * Free any allocated item in "cts".
+ */
+    void
+clear_chartabsize_arg(chartabsize_T *cts UNUSED)
+{
+#ifdef FEAT_PROP_POPUP
+    if (cts->cts_text_prop_count > 0)
+    {
+	VIM_CLEAR(cts->cts_text_props);
+	cts->cts_text_prop_count = 0;
+    }
+#endif
+}
+
+/*
+ * Like chartabsize(), but also check for line breaks on the screen and text
+ * properties that insert text.
  */
     int
-lbr_chartabsize(
-    char_u		*line UNUSED, /* start of the line */
-    unsigned char	*s,
-    colnr_T		col)
+lbr_chartabsize(chartabsize_T *cts)
 {
-#ifdef FEAT_LINEBREAK
-    if (!curwin->w_p_lbr && *p_sbr == NUL && !curwin->w_p_bri)
+#if defined(FEAT_LINEBREAK) || defined(FEAT_PROP_POPUP)
+    if (1
+# ifdef FEAT_LINEBREAK
+	&& !curwin->w_p_lbr && *get_showbreak_value(curwin) == NUL
+							   && !curwin->w_p_bri
+# endif
+# ifdef FEAT_PROP_POPUP
+	&& !cts->cts_has_prop_with_text
+#endif
+       )
     {
 #endif
-#ifdef FEAT_MBYTE
 	if (curwin->w_p_wrap)
-	    return win_nolbr_chartabsize(curwin, s, col, NULL);
-#endif
-	RET_WIN_BUF_CHARTABSIZE(curwin, curbuf, s, col)
-#ifdef FEAT_LINEBREAK
+	    return win_nolbr_chartabsize(cts, NULL);
+	RET_WIN_BUF_CHARTABSIZE(curwin, curbuf, cts->cts_ptr, cts->cts_vcol)
+#if defined(FEAT_LINEBREAK) || defined(FEAT_PROP_POPUP)
     }
-    return win_lbr_chartabsize(curwin, line == NULL ? s : line, s, col, NULL);
+    return win_lbr_chartabsize(cts, NULL);
 #endif
 }
 
@@ -1019,19 +1092,19 @@ lbr_chartabsize(
  * Call lbr_chartabsize() and advance the pointer.
  */
     int
-lbr_chartabsize_adv(
-    char_u	*line, /* start of the line */
-    char_u	**s,
-    colnr_T	col)
+lbr_chartabsize_adv(chartabsize_T *cts)
 {
     int		retval;
 
-    retval = lbr_chartabsize(line, *s, col);
-    mb_ptr_adv(*s);
+    retval = lbr_chartabsize(cts);
+    MB_PTR_ADV(cts->cts_ptr);
     return retval;
 }
 
 /*
+ * Return the screen size of the character indicated by "cts".
+ * "cts->cts_cur_text_width" is set to the extra size for a text property that
+ * inserts text.
  * This function is used very often, keep it fast!!!!
  *
  * If "headp" not NULL, set *headp to the size of what we for 'showbreak'
@@ -1040,47 +1113,141 @@ lbr_chartabsize_adv(
  */
     int
 win_lbr_chartabsize(
-    win_T	*wp,
-    char_u	*line UNUSED, /* start of the line */
-    char_u	*s,
-    colnr_T	col,
-    int		*headp UNUSED)
+	chartabsize_T	*cts,
+	int		*headp UNUSED)
 {
+    win_T	*wp = cts->cts_win;
+#if defined(FEAT_PROP_POPUP) || defined(FEAT_LINEBREAK)
+    char_u	*line = cts->cts_line; // start of the line
+#endif
+    char_u	*s = cts->cts_ptr;
+    colnr_T	vcol = cts->cts_vcol;
 #ifdef FEAT_LINEBREAK
     int		c;
     int		size;
     colnr_T	col2;
-    colnr_T	col_adj = 0; /* col + screen size of tab */
+    colnr_T	col_adj = 0; // vcol + screen size of tab
     colnr_T	colmax;
     int		added;
-# ifdef FEAT_MBYTE
     int		mb_added = 0;
-# else
-#  define mb_added 0
-# endif
     int		numberextra;
     char_u	*ps;
     int		tab_corr = (*s == TAB);
     int		n;
+    char_u	*sbr;
+    int		no_sbr = FALSE;
+#endif
 
+#if defined(FEAT_PROP_POPUP)
+    cts->cts_cur_text_width = 0;
+    cts->cts_first_char = 0;
+#endif
+
+#if defined(FEAT_LINEBREAK) || defined(FEAT_PROP_POPUP)
     /*
-     * No 'linebreak', 'showbreak' and 'breakindent': return quickly.
+     * No 'linebreak', 'showbreak', 'breakindent' and text properties that
+     * insert text: return quickly.
      */
-    if (!wp->w_p_lbr && !wp->w_p_bri && *p_sbr == NUL)
+    if (1
+# ifdef FEAT_LINEBREAK
+	    && !wp->w_p_lbr && !wp->w_p_bri && *get_showbreak_value(wp) == NUL
+# endif
+# ifdef FEAT_PROP_POPUP
+	    && !cts->cts_has_prop_with_text
+# endif
+	    )
 #endif
     {
-#ifdef FEAT_MBYTE
 	if (wp->w_p_wrap)
-	    return win_nolbr_chartabsize(wp, s, col, headp);
-#endif
-	RET_WIN_BUF_CHARTABSIZE(wp, wp->w_buffer, s, col)
+	    return win_nolbr_chartabsize(cts, headp);
+	RET_WIN_BUF_CHARTABSIZE(wp, wp->w_buffer, s, vcol)
     }
 
-#ifdef FEAT_LINEBREAK
+#if defined(FEAT_LINEBREAK) || defined(FEAT_PROP_POPUP)
     /*
-     * First get normal size, without 'linebreak'
+     * First get the normal size, without 'linebreak' or text properties
      */
-    size = win_chartabsize(wp, s, col);
+    size = win_chartabsize(wp, s, vcol);
+    if (*s == NUL)
+	size = 0;  // NUL is not displayed
+
+# ifdef FEAT_PROP_POPUP
+    if (cts->cts_has_prop_with_text)
+    {
+	int	    tab_size = size;
+	int	    charlen = *s == NUL ? 1 : mb_ptr2len(s);
+	int	    i;
+	int	    col = (int)(s - line);
+	garray_T    *gap = &wp->w_buffer->b_textprop_text;
+
+	// The "$" for 'list' mode will go between the EOL and
+	// the text prop, account for that.
+	if (wp->w_p_list && wp->w_lcs_chars.eol != NUL)
+	    ++vcol;
+
+	for (i = 0; i < cts->cts_text_prop_count; ++i)
+	{
+	    textprop_T	*tp = cts->cts_text_props + i;
+	    int		col_off = win_col_off(wp);
+
+	    // Watch out for the text being deleted.  "cts_text_props" is a
+	    // copy, the text prop may actually have been removed from the line.
+	    if (tp->tp_id < 0
+		    && ((tp->tp_col - 1 >= col
+					     && tp->tp_col - 1 < col + charlen)
+		       || (tp->tp_col == MAXCOL
+			   && ((tp->tp_flags & TP_FLAG_ALIGN_ABOVE)
+				? col == 0
+				: (s[0] == NUL || s[charlen] == NUL)
+						  && cts->cts_with_trailing)))
+		    && -tp->tp_id - 1 < gap->ga_len)
+	    {
+		char_u *p = ((char_u **)gap->ga_data)[-tp->tp_id - 1];
+
+		if (p != NULL)
+		{
+		    int	cells;
+
+		    if (tp->tp_col == MAXCOL)
+		    {
+			int n_extra = (int)STRLEN(p);
+
+			cells = text_prop_position(wp, tp, vcol,
+			     (vcol + size) % (wp->w_width - col_off) + col_off,
+					      &n_extra, &p, NULL, NULL, FALSE);
+#ifdef FEAT_LINEBREAK
+			no_sbr = TRUE;  // don't use 'showbreak' now
+#endif
+		    }
+		    else
+			cells = vim_strsize(p);
+		    cts->cts_cur_text_width += cells;
+		    if (tp->tp_flags & TP_FLAG_ALIGN_ABOVE)
+			cts->cts_first_char += cells;
+		    cts->cts_start_incl = tp->tp_flags & TP_FLAG_START_INCL;
+		    size += cells;
+		    if (*s == TAB)
+		    {
+			// tab size changes because of the inserted text
+			size -= tab_size;
+			tab_size = win_chartabsize(wp, s, vcol + size);
+			size += tab_size;
+		    }
+		    if (tp->tp_col == MAXCOL && (tp->tp_flags
+				& (TP_FLAG_ALIGN_ABOVE | TP_FLAG_ALIGN_BELOW)))
+			// count extra line for property above/below
+			++cts->cts_prop_lines;
+		}
+	    }
+	    if (tp->tp_col != MAXCOL && tp->tp_col - 1 > col)
+		break;
+	}
+	if (wp->w_p_list && wp->w_lcs_chars.eol != NUL)
+	    --vcol;
+    }
+# endif
+
+# ifdef FEAT_LINEBREAK
     c = *s;
     if (tab_corr)
 	col_adj = size - 1;
@@ -1090,147 +1257,156 @@ win_lbr_chartabsize(
      * needs a break here
      */
     if (wp->w_p_lbr
-	    && vim_isbreak(c)
-	    && !vim_isbreak(s[1])
+	    && VIM_ISBREAK(c)
+	    && !VIM_ISBREAK((int)s[1])
 	    && wp->w_p_wrap
-# ifdef FEAT_WINDOWS
-	    && wp->w_width != 0
-# endif
-       )
+	    && wp->w_width != 0)
     {
 	/*
 	 * Count all characters from first non-blank after a blank up to next
 	 * non-blank after a blank.
 	 */
 	numberextra = win_col_off(wp);
-	col2 = col;
-	colmax = (colnr_T)(W_WIDTH(wp) - numberextra - col_adj);
-	if (col >= colmax)
+	col2 = vcol;
+	colmax = (colnr_T)(wp->w_width - numberextra - col_adj);
+	if (vcol >= colmax)
 	{
 	    colmax += col_adj;
 	    n = colmax +  win_col_off2(wp);
 	    if (n > 0)
-		colmax += (((col - colmax) / n) + 1) * n - col_adj;
+		colmax += (((vcol - colmax) / n) + 1) * n - col_adj;
 	}
 
 	for (;;)
 	{
 	    ps = s;
-	    mb_ptr_adv(s);
+	    MB_PTR_ADV(s);
 	    c = *s;
 	    if (!(c != NUL
-		    && (vim_isbreak(c)
-			|| (!vim_isbreak(c)
-			    && (col2 == col || !vim_isbreak(*ps))))))
+		    && (VIM_ISBREAK(c)
+			|| (!VIM_ISBREAK(c)
+			       && (col2 == vcol || !VIM_ISBREAK((int)*ps))))))
 		break;
 
 	    col2 += win_chartabsize(wp, s, col2);
-	    if (col2 >= colmax)		/* doesn't fit */
+	    if (col2 >= colmax)		// doesn't fit
 	    {
-		size = colmax - col + col_adj;
-		tab_corr = FALSE;
+		size = colmax - vcol + col_adj;
 		break;
 	    }
 	}
     }
-# ifdef FEAT_MBYTE
     else if (has_mbyte && size == 2 && MB_BYTE2LEN(*s) > 1
-				    && wp->w_p_wrap && in_win_border(wp, col))
+				   && wp->w_p_wrap && in_win_border(wp, vcol))
     {
-	++size;		/* Count the ">" in the last column. */
+	++size;		// Count the ">" in the last column.
 	mb_added = 1;
     }
-# endif
 
     /*
      * May have to add something for 'breakindent' and/or 'showbreak'
      * string at start of line.
      * Set *headp to the size of what we add.
+     * Do not use 'showbreak' at the NUL after the text.
      */
     added = 0;
-    if ((*p_sbr != NUL || wp->w_p_bri) && wp->w_p_wrap && col != 0)
+    sbr = (c == NUL || no_sbr) ? empty_option : get_showbreak_value(wp);
+    if ((*sbr != NUL || wp->w_p_bri) && wp->w_p_wrap && vcol != 0)
     {
 	colnr_T sbrlen = 0;
 	int	numberwidth = win_col_off(wp);
 
 	numberextra = numberwidth;
-	col += numberextra + mb_added;
-	if (col >= (colnr_T)W_WIDTH(wp))
+	vcol += numberextra + mb_added;
+#ifdef FEAT_PROP_POPUP
+	vcol -= wp->w_virtcol_first_char;
+#endif
+	if (vcol >= (colnr_T)wp->w_width)
 	{
-	    col -= W_WIDTH(wp);
-	    numberextra = W_WIDTH(wp) - (numberextra - win_col_off2(wp));
-	    if (col >= numberextra && numberextra > 0)
-		col %= numberextra;
-	    if (*p_sbr != NUL)
+	    vcol -= wp->w_width;
+	    numberextra = wp->w_width - (numberextra - win_col_off2(wp));
+	    if (vcol >= numberextra && numberextra > 0)
+		vcol %= numberextra;
+	    if (*sbr != NUL)
 	    {
-		sbrlen = (colnr_T)MB_CHARLEN(p_sbr);
-		if (col >= sbrlen)
-		    col -= sbrlen;
+		sbrlen = (colnr_T)MB_CHARLEN(sbr);
+		if (vcol >= sbrlen)
+		    vcol -= sbrlen;
 	    }
-	    if (col >= numberextra && numberextra > 0)
-		col = col % numberextra;
-	    else if (col > 0 && numberextra > 0)
-		col += numberwidth - win_col_off2(wp);
+	    if (vcol >= numberextra && numberextra > 0)
+		vcol = vcol % numberextra;
+	    else if (vcol > 0 && numberextra > 0)
+		vcol += numberwidth - win_col_off2(wp);
 
 	    numberwidth -= win_col_off2(wp);
 	}
-	if (col == 0 || col + size + sbrlen > (colnr_T)W_WIDTH(wp))
+	if (vcol == 0 || vcol + size + sbrlen > (colnr_T)wp->w_width)
 	{
 	    added = 0;
-	    if (*p_sbr != NUL)
+	    if (*sbr != NUL)
 	    {
-		if (size + sbrlen + numberwidth > (colnr_T)W_WIDTH(wp))
+		if (size + sbrlen + numberwidth > (colnr_T)wp->w_width)
 		{
-		    /* calculate effective window width */
-		    int width = (colnr_T)W_WIDTH(wp) - sbrlen - numberwidth;
-		    int prev_width = col ? ((colnr_T)W_WIDTH(wp) - (sbrlen + col)) : 0;
-		    if (width == 0)
-			width = (colnr_T)W_WIDTH(wp);
-		    added += ((size - prev_width) / width) * vim_strsize(p_sbr);
+		    // calculate effective window width
+		    int width = (colnr_T)wp->w_width - sbrlen - numberwidth;
+		    int prev_width = vcol
+			       ? ((colnr_T)wp->w_width - (sbrlen + vcol)) : 0;
+
+		    if (width <= 0)
+			width = (colnr_T)1;
+		    added += ((size - prev_width) / width) * vim_strsize(sbr);
 		    if ((size - prev_width) % width)
-			/* wrapped, add another length of 'sbr' */
-			added += vim_strsize(p_sbr);
+			// wrapped, add another length of 'sbr'
+			added += vim_strsize(sbr);
 		}
 		else
-		    added += vim_strsize(p_sbr);
+		    added += vim_strsize(sbr);
 	    }
 	    if (wp->w_p_bri)
 		added += get_breakindent_win(wp, line);
 
 	    size += added;
-	    if (col != 0)
+	    if (vcol != 0)
 		added = 0;
 	}
     }
     if (headp != NULL)
 	*headp = added + mb_added;
     return size;
+# endif
 #endif
 }
 
-#if defined(FEAT_MBYTE) || defined(PROTO)
 /*
- * Like win_lbr_chartabsize(), except that we know 'linebreak' is off and
- * 'wrap' is on.  This means we need to check for a double-byte character that
- * doesn't fit at the end of the screen line.
+ * Like win_lbr_chartabsize(), except that we know 'linebreak' is off, 'wrap'
+ * is on and there are no properties that insert text.  This means we need to
+ * check for a double-byte character that doesn't fit at the end of the screen
+ * line.
+ * Only uses "cts_win", "cts_ptr" and "cts_vcol" from "cts".
  */
     static int
 win_nolbr_chartabsize(
-    win_T	*wp,
-    char_u	*s,
-    colnr_T	col,
-    int		*headp)
+	chartabsize_T	*cts,
+	int		*headp)
 {
+    win_T	*wp = cts->cts_win;
+    char_u	*s = cts->cts_ptr;
+    colnr_T	col = cts->cts_vcol;
     int		n;
 
-    if (*s == TAB && (!wp->w_p_list || lcs_tab1))
+    if (*s == TAB && (!wp->w_p_list || wp->w_lcs_chars.tab1))
     {
+# ifdef FEAT_VARTABS
+	return tabstop_padding(col, wp->w_buffer->b_p_ts,
+				    wp->w_buffer->b_p_vts_array);
+# else
 	n = wp->w_buffer->b_p_ts;
 	return (int)(n - (col % n));
+# endif
     }
     n = ptr2cells(s);
-    /* Add one cell for a double-width character in the last column of the
-     * window, displayed with a ">". */
+    // Add one cell for a double-width character in the last column of the
+    // window, displayed with a ">".
     if (n == 2 && MB_BYTE2LEN(*s) > 1 && in_win_border(wp, col))
     {
 	if (headp != NULL)
@@ -1244,17 +1420,15 @@ win_nolbr_chartabsize(
  * Return TRUE if virtual column "vcol" is in the rightmost column of window
  * "wp".
  */
-    int
+    static int
 in_win_border(win_T *wp, colnr_T vcol)
 {
-    int		width1;		/* width of first line (after line number) */
-    int		width2;		/* width of further lines */
+    int		width1;		// width of first line (after line number)
+    int		width2;		// width of further lines
 
-# ifdef FEAT_WINDOWS
-    if (wp->w_width == 0)	/* there is no border */
+    if (wp->w_width == 0)	// there is no border
 	return FALSE;
-# endif
-    width1 = W_WIDTH(wp) - win_col_off(wp);
+    width1 = wp->w_width - win_col_off(wp);
     if ((int)vcol < width1 - 1)
 	return FALSE;
     if ((int)vcol == width1 - 1)
@@ -1264,7 +1438,6 @@ in_win_border(win_T *wp, colnr_T vcol)
 	return FALSE;
     return ((vcol - width1) % width2 == width2 - 1);
 }
-#endif /* FEAT_MBYTE */
 
 /*
  * Get virtual column number of pos.
@@ -1283,66 +1456,90 @@ getvcol(
     colnr_T	*end)
 {
     colnr_T	vcol;
-    char_u	*ptr;		/* points to current char */
-    char_u	*posptr;	/* points to char at pos->col */
-    char_u	*line;		/* start of the line */
+    char_u	*ptr;		// points to current char
+    char_u	*posptr;	// points to char at pos->col
+    char_u	*line;		// start of the line
     int		incr;
     int		head;
+#ifdef FEAT_VARTABS
+    int		*vts = wp->w_buffer->b_p_vts_array;
+#endif
     int		ts = wp->w_buffer->b_p_ts;
     int		c;
+    chartabsize_T cts;
+#ifdef FEAT_PROP_POPUP
+    int		on_NUL = FALSE;
+#endif
 
     vcol = 0;
     line = ptr = ml_get_buf(wp->w_buffer, pos->lnum, FALSE);
     if (pos->col == MAXCOL)
-	posptr = NULL;  /* continue until the NUL */
+	posptr = NULL;  // continue until the NUL
     else
+    {
+	colnr_T i;
+
+	// In a few cases the position can be beyond the end of the line.
+	for (i = 0; i < pos->col; ++i)
+	    if (ptr[i] == NUL)
+	    {
+		pos->col = i;
+		break;
+	    }
 	posptr = ptr + pos->col;
+	if (has_mbyte)
+	    // always start on the first byte
+	    posptr -= (*mb_head_off)(line, posptr);
+    }
+
+    init_chartabsize_arg(&cts, wp, pos->lnum, 0, line, line);
 
     /*
      * This function is used very often, do some speed optimizations.
      * When 'list', 'linebreak', 'showbreak' and 'breakindent' are not set
-     * use a simple loop.
+     * and there are no text properties with "text" use a simple loop.
      * Also use this when 'list' is set but tabs take their normal size.
      */
-    if ((!wp->w_p_list || lcs_tab1 != NUL)
+    if ((!wp->w_p_list || wp->w_lcs_chars.tab1 != NUL)
 #ifdef FEAT_LINEBREAK
-	    && !wp->w_p_lbr && *p_sbr == NUL && !wp->w_p_bri
+	    && !wp->w_p_lbr && *get_showbreak_value(wp) == NUL && !wp->w_p_bri
+#endif
+#ifdef FEAT_PROP_POPUP
+	    && !cts.cts_has_prop_with_text
 #endif
        )
     {
-#ifndef FEAT_MBYTE
-	head = 0;
-#endif
 	for (;;)
 	{
-#ifdef FEAT_MBYTE
 	    head = 0;
-#endif
 	    c = *ptr;
-	    /* make sure we don't go past the end of the line */
+	    // make sure we don't go past the end of the line
 	    if (c == NUL)
 	    {
-		incr = 1;	/* NUL at end of line only takes one column */
+		incr = 1;	// NUL at end of line only takes one column
 		break;
 	    }
-	    /* A tab gets expanded, depending on the current column */
+	    // A tab gets expanded, depending on the current column
 	    if (c == TAB)
+#ifdef FEAT_VARTABS
+		incr = tabstop_padding(vcol, ts, vts);
+#else
 		incr = ts - (vcol % ts);
+#endif
 	    else
 	    {
-#ifdef FEAT_MBYTE
 		if (has_mbyte)
 		{
-		    /* For utf-8, if the byte is >= 0x80, need to look at
-		     * further bytes to find the cell width. */
+		    // For utf-8, if the byte is >= 0x80, need to look at
+		    // further bytes to find the cell width.
 		    if (enc_utf8 && c >= 0x80)
 			incr = utf_ptr2cells(ptr);
 		    else
 			incr = g_chartab[c] & CT_CELL_MASK;
 
-		    /* If a double-cell char doesn't fit at the end of a line
-		     * it wraps to the next line, it's like this char is three
-		     * cells wide. */
+		    // If a double-cell char doesn't fit at the end of a line
+		    // it wraps to the next line, it's like this char is three
+		    // cells wide.
 		    if (incr == 2 && wp->w_p_wrap && MB_BYTE2LEN(*ptr) > 1
 			    && in_win_border(wp, vcol))
 		    {
@@ -1351,38 +1548,53 @@ getvcol(
 		    }
 		}
 		else
-#endif
 		    incr = g_chartab[c] & CT_CELL_MASK;
 	    }
 
-	    if (posptr != NULL && ptr >= posptr) /* character at pos->col */
+	    if (posptr != NULL && ptr >= posptr) // character at pos->col
 		break;
 
 	    vcol += incr;
-	    mb_ptr_adv(ptr);
+	    MB_PTR_ADV(ptr);
 	}
     }
     else
     {
 	for (;;)
 	{
-	    /* A tab gets expanded, depending on the current column */
+	    // A tab gets expanded, depending on the current column.
+	    // Other things also take up space.
 	    head = 0;
-	    incr = win_lbr_chartabsize(wp, line, ptr, vcol, &head);
-	    /* make sure we don't go past the end of the line */
-	    if (*ptr == NUL)
+	    incr = win_lbr_chartabsize(&cts, &head);
+	    // make sure we don't go past the end of the line
+	    if (*cts.cts_ptr == NUL)
 	    {
-		incr = 1;	/* NUL at end of line only takes one column */
+		incr = 1;	// NUL at end of line only takes one column
+#ifdef FEAT_PROP_POPUP
+		if (cts.cts_cur_text_width > 0)
+		    incr = cts.cts_cur_text_width;
+		on_NUL = TRUE;
+#endif
 		break;
 	    }
+#ifdef FEAT_PROP_POPUP
+	    if (cursor == &wp->w_virtcol && cts.cts_ptr == cts.cts_line)
+		// do not count the virtual text above for w_curswant
+		wp->w_virtcol_first_char = cts.cts_first_char;
+#endif
 
-	    if (posptr != NULL && ptr >= posptr) /* character at pos->col */
+	    if (posptr != NULL && cts.cts_ptr >= posptr)
+		// character at pos->col
 		break;
 
-	    vcol += incr;
-	    mb_ptr_adv(ptr);
+	    cts.cts_vcol += incr;
+	    MB_PTR_ADV(cts.cts_ptr);
 	}
+	vcol = cts.cts_vcol;
+	ptr = cts.cts_ptr;
     }
+    clear_chartabsize_arg(&cts);
+
     if (start != NULL)
 	*start = vcol + head;
     if (end != NULL)
@@ -1390,14 +1602,27 @@ getvcol(
     if (cursor != NULL)
     {
 	if (*ptr == TAB
-		&& (State & NORMAL)
+		&& (State & MODE_NORMAL)
 		&& !wp->w_p_list
 		&& !virtual_active()
-		&& !(VIsual_active && (*p_sel == 'e' || ltoreq(*pos, VIsual)))
+		&& !(VIsual_active
+				&& (*p_sel == 'e' || LTOREQ_POS(*pos, VIsual)))
 		)
-	    *cursor = vcol + incr - 1;	    /* cursor at end */
+	    *cursor = vcol + incr - 1;	    // cursor at end
 	else
-	    *cursor = vcol + head;	    /* cursor at start */
+	{
+#ifdef FEAT_PROP_POPUP
+	    // in Insert mode, if "start_incl" is true the text gets inserted
+	    // after the virtual text, thus add its width
+	    if (((State & MODE_INSERT) == 0 || cts.cts_start_incl) && !on_NUL)
+		// cursor is after inserted text, unless on the NUL
+		vcol += cts.cts_cur_text_width;
+	    else
+		// insertion also happens after the "above" virtual text
+		vcol += cts.cts_first_char;
+#endif
+	    *cursor = vcol + head;	    // cursor at start
+	}
     }
 }
 
@@ -1411,12 +1636,14 @@ getvcol_nolist(pos_T *posp)
     colnr_T	vcol;
 
     curwin->w_p_list = FALSE;
-    getvcol(curwin, posp, NULL, &vcol, NULL);
+    if (posp->coladd)
+	getvvcol(curwin, posp, NULL, &vcol, NULL);
+    else
+	getvcol(curwin, posp, NULL, &vcol, NULL);
     curwin->w_p_list = list_save;
     return vcol;
 }
 
-#if defined(FEAT_VIRTUALEDIT) || defined(PROTO)
 /*
  * Get virtual column in virtual mode.
  */
@@ -1431,19 +1658,16 @@ getvvcol(
     colnr_T	col;
     colnr_T	coladd;
     colnr_T	endadd;
-# ifdef FEAT_MBYTE
     char_u	*ptr;
-# endif
 
     if (virtual_active())
     {
-	/* For virtual mode, only want one value */
+	// For virtual mode, only want one value
 	getvcol(wp, pos, &col, NULL, NULL);
 
 	coladd = pos->coladd;
 	endadd = 0;
-# ifdef FEAT_MBYTE
-	/* Cannot put the cursor on part of a wide character. */
+	// Cannot put the cursor on part of a wide character.
 	ptr = ml_get_buf(wp->w_buffer, pos->lnum, FALSE);
 	if (pos->col < (colnr_T)STRLEN(ptr))
 	{
@@ -1452,13 +1676,12 @@ getvvcol(
 	    if (c != TAB && vim_isprintc(c))
 	    {
 		endadd = (colnr_T)(char2cells(c) - 1);
-		if (coladd > endadd)	/* past end of line */
+		if (coladd > endadd)	// past end of line
 		    endadd = 0;
 		else
 		    coladd = 0;
 	    }
 	}
-# endif
 	col += coladd;
 	if (start != NULL)
 	    *start = col;
@@ -1470,7 +1693,6 @@ getvvcol(
     else
 	getvcol(wp, pos, start, cursor, end);
 }
-#endif
 
 /*
  * Get the leftmost and rightmost virtual column of pos1 and pos2.
@@ -1486,7 +1708,7 @@ getvcols(
 {
     colnr_T	from1, from2, to1, to2;
 
-    if (ltp(pos1, pos2))
+    if (LT_POSP(pos1, pos2))
     {
 	getvvcol(wp, pos1, &from1, NULL, &to1);
 	getvvcol(wp, pos2, &from2, NULL, &to2);
@@ -1512,16 +1734,47 @@ getvcols(
 }
 
 /*
- * skipwhite: skip over ' ' and '\t'.
+ * Skip over ' ' and '\t'.
  */
     char_u *
 skipwhite(char_u *q)
 {
     char_u	*p = q;
 
-    while (vim_iswhite(*p)) /* skip to next non-white */
+    while (VIM_ISWHITE(*p))
 	++p;
     return p;
+}
+
+#if defined(FEAT_EVAL) || defined(PROTO)
+/*
+ * skip over ' ', '\t' and '\n'.
+ */
+    char_u *
+skipwhite_and_nl(char_u *q)
+{
+    char_u	*p = q;
+
+    while (VIM_ISWHITE(*p) || *p == NL)
+	++p;
+    return p;
+}
+#endif
+
+/*
+ * getwhitecols: return the number of whitespace
+ * columns (bytes) at the start of a given line
+ */
+    int
+getwhitecols_curline(void)
+{
+    return getwhitecols(ml_get_curline());
+}
+
+    int
+getwhitecols(char_u *p)
+{
+    return skipwhite(p) - p;
 }
 
 /*
@@ -1532,7 +1785,7 @@ skipdigits(char_u *q)
 {
     char_u	*p = q;
 
-    while (VIM_ISDIGIT(*p))	/* skip to next non-digit */
+    while (VIM_ISDIGIT(*p))	// skip to next non-digit
 	++p;
     return p;
 }
@@ -1546,7 +1799,7 @@ skipbin(char_u *q)
 {
     char_u	*p = q;
 
-    while (vim_isbdigit(*p))	/* skip to next non-digit */
+    while (vim_isbdigit(*p))	// skip to next non-digit
 	++p;
     return p;
 }
@@ -1559,7 +1812,7 @@ skiphex(char_u *q)
 {
     char_u	*p = q;
 
-    while (vim_isxdigit(*p))	/* skip to next non-digit */
+    while (vim_isxdigit(*p))	// skip to next non-digit
 	++p;
     return p;
 }
@@ -1573,7 +1826,7 @@ skiptobin(char_u *q)
 {
     char_u	*p = q;
 
-    while (*p != NUL && !vim_isbdigit(*p))	/* skip to next digit */
+    while (*p != NUL && !vim_isbdigit(*p))	// skip to next digit
 	++p;
     return p;
 }
@@ -1586,7 +1839,7 @@ skiptodigit(char_u *q)
 {
     char_u	*p = q;
 
-    while (*p != NUL && !VIM_ISDIGIT(*p))	/* skip to next digit */
+    while (*p != NUL && !VIM_ISDIGIT(*p))	// skip to next digit
 	++p;
     return p;
 }
@@ -1599,7 +1852,7 @@ skiptohex(char_u *q)
 {
     char_u	*p = q;
 
-    while (*p != NUL && !vim_isxdigit(*p))	/* skip to next digit */
+    while (*p != NUL && !vim_isxdigit(*p))	// skip to next digit
 	++p;
     return p;
 }
@@ -1639,7 +1892,12 @@ vim_isbdigit(int c)
     return (c == '0' || c == '1');
 }
 
-#if defined(FEAT_MBYTE) || defined(PROTO)
+    static int
+vim_isodigit(int c)
+{
+    return (c >= '0' && c <= '7');
+}
+
 /*
  * Vim's own character class functions.  These exist because many library
  * islower()/toupper() etc. do not work properly: they crash when used with
@@ -1668,7 +1926,7 @@ vim_islower(int c)
 	    if (has_mbyte)
 		return iswlower(c);
 #endif
-	    /* islower() can't handle these chars and may crash */
+	    // islower() can't handle these chars and may crash
 	    return FALSE;
 	}
 	if (enc_latin1like)
@@ -1692,7 +1950,7 @@ vim_isupper(int c)
 	    if (has_mbyte)
 		return iswupper(c);
 #endif
-	    /* islower() can't handle these chars and may crash */
+	    // islower() can't handle these chars and may crash
 	    return FALSE;
 	}
 	if (enc_latin1like)
@@ -1702,11 +1960,17 @@ vim_isupper(int c)
 }
 
     int
+vim_isalpha(int c)
+{
+    return vim_islower(c) || vim_isupper(c);
+}
+
+    int
 vim_toupper(int c)
 {
     if (c <= '@')
 	return c;
-    if (c >= 0x80)
+    if (c >= 0x80 || !(cmp_flags & CMP_KEEPASCII))
     {
 	if (enc_utf8)
 	    return utf_toupper(c);
@@ -1716,12 +1980,14 @@ vim_toupper(int c)
 	    if (has_mbyte)
 		return towupper(c);
 #endif
-	    /* toupper() can't handle these chars and may crash */
+	    // toupper() can't handle these chars and may crash
 	    return c;
 	}
 	if (enc_latin1like)
 	    return latin1upper[c];
     }
+    if (c < 0x80 && (cmp_flags & CMP_KEEPASCII))
+	return TOUPPER_ASC(c);
     return TOUPPER_LOC(c);
 }
 
@@ -1730,7 +1996,7 @@ vim_tolower(int c)
 {
     if (c <= '@')
 	return c;
-    if (c >= 0x80)
+    if (c >= 0x80 || !(cmp_flags & CMP_KEEPASCII))
     {
 	if (enc_utf8)
 	    return utf_tolower(c);
@@ -1740,15 +2006,16 @@ vim_tolower(int c)
 	    if (has_mbyte)
 		return towlower(c);
 #endif
-	    /* tolower() can't handle these chars and may crash */
+	    // tolower() can't handle these chars and may crash
 	    return c;
 	}
 	if (enc_latin1like)
 	    return latin1lower[c];
     }
+    if (c < 0x80 && (cmp_flags & CMP_KEEPASCII))
+	return TOLOWER_ASC(c);
     return TOLOWER_LOC(c);
 }
-#endif
 
 /*
  * skiptowhite: skip over text until ' ' or '\t' or NUL.
@@ -1761,7 +2028,6 @@ skiptowhite(char_u *p)
     return p;
 }
 
-#if defined(FEAT_LISTCMDS) || defined(FEAT_SIGNS) || defined(PROTO)
 /*
  * skiptowhite_esc: Like skiptowhite(), but also skip escaped chars
  */
@@ -1776,10 +2042,9 @@ skiptowhite_esc(char_u *p)
     }
     return p;
 }
-#endif
 
 /*
- * Getdigits: Get a number from a string and skip over it.
+ * Get a number from a string and skip over it.
  * Note: the argument is a pointer to a char_u pointer!
  */
     long
@@ -1790,9 +2055,41 @@ getdigits(char_u **pp)
 
     p = *pp;
     retval = atol((char *)p);
-    if (*p == '-')		/* skip negative sign */
+    if (*p == '-')		// skip negative sign
 	++p;
-    p = skipdigits(p);		/* skip to next non-digit */
+    p = skipdigits(p);		// skip to next non-digit
+    *pp = p;
+    return retval;
+}
+
+/*
+ * Like getdigits() but allow for embedded single quotes.
+ */
+    long
+getdigits_quoted(char_u **pp)
+{
+    char_u	*p = *pp;
+    long	retval = 0;
+
+    if (*p == '-')
+	++p;
+    while (VIM_ISDIGIT(*p))
+    {
+	if (retval >= LONG_MAX / 10 - 10)
+	    retval = LONG_MAX;
+	else
+	    retval = retval * 10 - '0' + *p;
+	++p;
+	if (in_vim9script() && *p == '\'' && VIM_ISDIGIT(p[1]))
+	    ++p;
+    }
+    if (**pp == '-')
+    {
+	if (retval == LONG_MAX)
+	    retval = LONG_MIN;
+	else
+	    retval = -retval;
+    }
     *pp = p;
     return retval;
 }
@@ -1815,6 +2112,8 @@ vim_isblankline(char_u *lbuf)
  * If "prep" is not NULL, returns a flag to indicate the type of the number:
  *  0	    decimal
  *  '0'	    octal
+ *  'O'	    octal
+ *  'o'	    octal
  *  'B'	    bin
  *  'b'	    bin
  *  'X'	    hex
@@ -1826,25 +2125,32 @@ vim_isblankline(char_u *lbuf)
  * If "what" contains STR2NR_OCT recognize octal numbers
  * If "what" contains STR2NR_HEX recognize hex numbers
  * If "what" contains STR2NR_FORCE always assume bin/oct/hex.
- * If maxlen > 0, check at a maximum maxlen chars
+ * If "what" contains STR2NR_QUOTE ignore embedded single quotes
+ * If maxlen > 0, check at a maximum maxlen chars.
+ * If strict is TRUE, check the number strictly. return *len = 0 if fail.
  */
     void
 vim_str2nr(
     char_u		*start,
-    int			*prep,	    /* return: type of number 0 = decimal, 'x'
-				       or 'X' is hex, '0' = octal, 'b' or 'B'
-				       is bin */
-    int			*len,	    /* return: detected length of number */
-    int			what,	    /* what numbers to recognize */
-    long		*nptr,	    /* return: signed result */
-    unsigned long	*unptr,	    /* return: unsigned result */
-    int			maxlen)     /* max length of string to check */
+    int			*prep,	    // return: type of number 0 = decimal, 'x'
+				    // or 'X' is hex, '0', 'o' or 'O' is octal,
+				    // 'b' or 'B' is bin
+    int			*len,	    // return: detected length of number
+    int			what,	    // what numbers to recognize
+    varnumber_T		*nptr,	    // return: signed result
+    uvarnumber_T	*unptr,	    // return: unsigned result
+    int			maxlen,     // max length of string to check
+    int			strict,     // check strictly
+    int			*overflow)  // when not NULL set to TRUE for overflow
 {
     char_u	    *ptr = start;
-    int		    pre = 0;		/* default is decimal */
+    int		    pre = 0;		// default is decimal
     int		    negative = FALSE;
-    unsigned long   un = 0;
+    uvarnumber_T    un = 0;
     int		    n;
+
+    if (len != NULL)
+	*len = 0;
 
     if (ptr[0] == '-')
     {
@@ -1852,7 +2158,7 @@ vim_str2nr(
 	++ptr;
     }
 
-    /* Recognize hex, octal, and bin. */
+    // Recognize hex, octal, and bin.
     if (ptr[0] == '0' && ptr[1] != '8' && ptr[1] != '9'
 					       && (maxlen == 0 || maxlen > 1))
     {
@@ -1860,88 +2166,158 @@ vim_str2nr(
 	if ((what & STR2NR_HEX)
 		&& (pre == 'X' || pre == 'x') && vim_isxdigit(ptr[2])
 		&& (maxlen == 0 || maxlen > 2))
-	    /* hexadecimal */
+	    // hexadecimal
 	    ptr += 2;
 	else if ((what & STR2NR_BIN)
 		&& (pre == 'B' || pre == 'b') && vim_isbdigit(ptr[2])
 		&& (maxlen == 0 || maxlen > 2))
-	    /* binary */
+	    // binary
+	    ptr += 2;
+	else if ((what & STR2NR_OOCT)
+		&& (pre == 'O' || pre == 'o') && vim_isodigit(ptr[2])
+		&& (maxlen == 0 || maxlen > 2))
+	    // octal with prefix "0o"
 	    ptr += 2;
 	else
 	{
-	    /* decimal or octal, default is decimal */
+	    // decimal or octal, default is decimal
 	    pre = 0;
 	    if (what & STR2NR_OCT)
 	    {
-		/* Don't interpret "0", "08" or "0129" as octal. */
-		for (n = 1; VIM_ISDIGIT(ptr[n]); ++n)
+		// Don't interpret "0", "08" or "0129" as octal.
+		for (n = 1; n != maxlen && VIM_ISDIGIT(ptr[n]); ++n)
 		{
 		    if (ptr[n] > '7')
 		    {
-			pre = 0;	/* can't be octal */
+			pre = 0;	// can't be octal
 			break;
 		    }
-		    if (ptr[n] >= '0')
-			pre = '0';	/* assume octal */
-		    if (n == maxlen)
-			break;
+		    pre = '0';	// assume octal
 		}
 	    }
 	}
     }
 
-    /*
-    * Do the string-to-numeric conversion "manually" to avoid sscanf quirks.
-    */
+    // Do the conversion manually to avoid sscanf() quirks.
     n = 1;
-    if (pre == 'B' || pre == 'b' || what == STR2NR_BIN + STR2NR_FORCE)
+    if (pre == 'B' || pre == 'b'
+			     || ((what & STR2NR_BIN) && (what & STR2NR_FORCE)))
     {
-	/* bin */
+	// bin
 	if (pre != 0)
-	    n += 2;	    /* skip over "0b" */
+	    n += 2;	    // skip over "0b"
 	while ('0' <= *ptr && *ptr <= '1')
 	{
-	    un = 2 * un + (unsigned long)(*ptr - '0');
+	    // avoid ubsan error for overflow
+	    if (un <= UVARNUM_MAX / 2)
+		un = 2 * un + (uvarnumber_T)(*ptr - '0');
+	    else
+	    {
+		un = UVARNUM_MAX;
+		if (overflow != NULL)
+		    *overflow = TRUE;
+	    }
 	    ++ptr;
 	    if (n++ == maxlen)
 		break;
+	    if ((what & STR2NR_QUOTE) && *ptr == '\''
+					     && '0' <= ptr[1] && ptr[1] <= '1')
+	    {
+		++ptr;
+		if (n++ == maxlen)
+		    break;
+	    }
 	}
     }
-    else if (pre == '0' || what == STR2NR_OCT + STR2NR_FORCE)
+    else if (pre == 'O' || pre == 'o' ||
+		pre == '0' || ((what & STR2NR_OCT) && (what & STR2NR_FORCE)))
     {
-	/* octal */
+	// octal
+	if (pre != 0 && pre != '0')
+	    n += 2;	    // skip over "0o"
 	while ('0' <= *ptr && *ptr <= '7')
 	{
-	    un = 8 * un + (unsigned long)(*ptr - '0');
+	    // avoid ubsan error for overflow
+	    if (un <= UVARNUM_MAX / 8)
+		un = 8 * un + (uvarnumber_T)(*ptr - '0');
+	    else
+	    {
+		un = UVARNUM_MAX;
+		if (overflow != NULL)
+		    *overflow = TRUE;
+	    }
 	    ++ptr;
 	    if (n++ == maxlen)
 		break;
+	    if ((what & STR2NR_QUOTE) && *ptr == '\''
+					     && '0' <= ptr[1] && ptr[1] <= '7')
+	    {
+		++ptr;
+		if (n++ == maxlen)
+		    break;
+	    }
 	}
     }
-    else if (pre != 0 || what == STR2NR_HEX + STR2NR_FORCE)
+    else if (pre != 0 || ((what & STR2NR_HEX) && (what & STR2NR_FORCE)))
     {
-	/* hex */
+	// hex
 	if (pre != 0)
-	    n += 2;	    /* skip over "0x" */
+	    n += 2;	    // skip over "0x"
 	while (vim_isxdigit(*ptr))
 	{
-	    un = 16 * un + (unsigned long)hex2nr(*ptr);
+	    // avoid ubsan error for overflow
+	    if (un <= UVARNUM_MAX / 16)
+		un = 16 * un + (uvarnumber_T)hex2nr(*ptr);
+	    else
+	    {
+		un = UVARNUM_MAX;
+		if (overflow != NULL)
+		    *overflow = TRUE;
+	    }
 	    ++ptr;
 	    if (n++ == maxlen)
 		break;
+	    if ((what & STR2NR_QUOTE) && *ptr == '\'' && vim_isxdigit(ptr[1]))
+	    {
+		++ptr;
+		if (n++ == maxlen)
+		    break;
+	    }
 	}
     }
     else
     {
-	/* decimal */
+	// decimal
 	while (VIM_ISDIGIT(*ptr))
 	{
-	    un = 10 * un + (unsigned long)(*ptr - '0');
+	    uvarnumber_T    digit = (uvarnumber_T)(*ptr - '0');
+
+	    // avoid ubsan error for overflow
+	    if (un < UVARNUM_MAX / 10
+		    || (un == UVARNUM_MAX / 10 && digit <= UVARNUM_MAX % 10))
+		un = 10 * un + digit;
+	    else
+	    {
+		un = UVARNUM_MAX;
+		if (overflow != NULL)
+		    *overflow = TRUE;
+	    }
 	    ++ptr;
 	    if (n++ == maxlen)
 		break;
+	    if ((what & STR2NR_QUOTE) && *ptr == '\'' && VIM_ISDIGIT(ptr[1]))
+	    {
+		++ptr;
+		if (n++ == maxlen)
+		    break;
+	    }
 	}
     }
+
+    // Check for an alphanumeric character immediately following, that is
+    // most likely a typo.
+    if (strict && n - 1 != maxlen && ASCII_ISALNUM(*ptr))
+	return;
 
     if (prep != NULL)
 	*prep = pre;
@@ -1949,10 +2325,29 @@ vim_str2nr(
 	*len = (int)(ptr - start);
     if (nptr != NULL)
     {
-	if (negative)   /* account for leading '-' for decimal numbers */
-	    *nptr = -(long)un;
+	if (negative)   // account for leading '-' for decimal numbers
+	{
+	    // avoid ubsan error for overflow
+	    if (un > VARNUM_MAX)
+	    {
+		*nptr = VARNUM_MIN;
+		if (overflow != NULL)
+		    *overflow = TRUE;
+	    }
+	    else
+		*nptr = -(varnumber_T)un;
+	}
 	else
-	    *nptr = (long)un;
+	{
+	    // prevent a large unsigned number to become negative
+	    if (un > VARNUM_MAX)
+	    {
+		un = VARNUM_MAX;
+		if (overflow != NULL)
+		    *overflow = TRUE;
+	    }
+	    *nptr = (varnumber_T)un;
+	}
     }
     if (unptr != NULL)
 	*unptr = un;
@@ -1972,8 +2367,6 @@ hex2nr(int c)
     return c - '0';
 }
 
-#if defined(FEAT_TERMRESPONSE) \
-	|| (defined(FEAT_GUI_GTK) && defined(FEAT_WINDOWS)) || defined(PROTO)
 /*
  * Convert two hex characters to a byte.
  * Return -1 if one of the characters is not hex.
@@ -1985,11 +2378,10 @@ hexhex2nr(char_u *p)
 	return -1;
     return (hex2nr(p[0]) << 4) + hex2nr(p[1]);
 }
-#endif
 
 /*
  * Return TRUE if "str" starts with a backslash that should be removed.
- * For MS-DOS, WIN32 and OS/2 this is only done when the character after the
+ * For MS-DOS, MSWIN and OS/2 this is only done when the character after the
  * backslash is not a normal file name character.
  * '$' is a valid file name character, we don't remove the backslash before
  * it.  This means it is not possible to use an environment variable after a
@@ -2005,9 +2397,7 @@ rem_backslash(char_u *str)
 {
 #ifdef BACKSLASH_IN_FILENAME
     return (str[0] == '\\'
-# ifdef FEAT_MBYTE
 	    && str[1] < 0x80
-# endif
 	    && (str[1] == ' '
 		|| (str[1] != NUL
 		    && str[1] != '*'
@@ -2033,6 +2423,7 @@ backslash_halve(char_u *p)
 
 /*
  * backslash_halve() plus save the result in allocated memory.
+ * However, returns "p" when out of memory.
  */
     char_u *
 backslash_halve_save(char_u *p)
@@ -2045,59 +2436,3 @@ backslash_halve_save(char_u *p)
     backslash_halve(res);
     return res;
 }
-
-#if (defined(EBCDIC) && defined(FEAT_POSTSCRIPT)) || defined(PROTO)
-/*
- * Table for EBCDIC to ASCII conversion unashamedly taken from xxd.c!
- * The first 64 entries have been added to map control characters defined in
- * ascii.h
- */
-static char_u ebcdic2ascii_tab[256] =
-{
-    0000, 0001, 0002, 0003, 0004, 0011, 0006, 0177,
-    0010, 0011, 0012, 0013, 0014, 0015, 0016, 0017,
-    0020, 0021, 0022, 0023, 0024, 0012, 0010, 0027,
-    0030, 0031, 0032, 0033, 0033, 0035, 0036, 0037,
-    0040, 0041, 0042, 0043, 0044, 0045, 0046, 0047,
-    0050, 0051, 0052, 0053, 0054, 0055, 0056, 0057,
-    0060, 0061, 0062, 0063, 0064, 0065, 0066, 0067,
-    0070, 0071, 0072, 0073, 0074, 0075, 0076, 0077,
-    0040, 0240, 0241, 0242, 0243, 0244, 0245, 0246,
-    0247, 0250, 0325, 0056, 0074, 0050, 0053, 0174,
-    0046, 0251, 0252, 0253, 0254, 0255, 0256, 0257,
-    0260, 0261, 0041, 0044, 0052, 0051, 0073, 0176,
-    0055, 0057, 0262, 0263, 0264, 0265, 0266, 0267,
-    0270, 0271, 0313, 0054, 0045, 0137, 0076, 0077,
-    0272, 0273, 0274, 0275, 0276, 0277, 0300, 0301,
-    0302, 0140, 0072, 0043, 0100, 0047, 0075, 0042,
-    0303, 0141, 0142, 0143, 0144, 0145, 0146, 0147,
-    0150, 0151, 0304, 0305, 0306, 0307, 0310, 0311,
-    0312, 0152, 0153, 0154, 0155, 0156, 0157, 0160,
-    0161, 0162, 0136, 0314, 0315, 0316, 0317, 0320,
-    0321, 0345, 0163, 0164, 0165, 0166, 0167, 0170,
-    0171, 0172, 0322, 0323, 0324, 0133, 0326, 0327,
-    0330, 0331, 0332, 0333, 0334, 0335, 0336, 0337,
-    0340, 0341, 0342, 0343, 0344, 0135, 0346, 0347,
-    0173, 0101, 0102, 0103, 0104, 0105, 0106, 0107,
-    0110, 0111, 0350, 0351, 0352, 0353, 0354, 0355,
-    0175, 0112, 0113, 0114, 0115, 0116, 0117, 0120,
-    0121, 0122, 0356, 0357, 0360, 0361, 0362, 0363,
-    0134, 0237, 0123, 0124, 0125, 0126, 0127, 0130,
-    0131, 0132, 0364, 0365, 0366, 0367, 0370, 0371,
-    0060, 0061, 0062, 0063, 0064, 0065, 0066, 0067,
-    0070, 0071, 0372, 0373, 0374, 0375, 0376, 0377
-};
-
-/*
- * Convert a buffer worth of characters from EBCDIC to ASCII.  Only useful if
- * wanting 7-bit ASCII characters out the other end.
- */
-    void
-ebcdic2ascii(char_u *buffer, int len)
-{
-    int		i;
-
-    for (i = 0; i < len; i++)
-	buffer[i] = ebcdic2ascii_tab[buffer[i]];
-}
-#endif

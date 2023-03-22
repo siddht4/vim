@@ -1,7 +1,7 @@
 " Vim indent file
 " Language:	Sass
 " Maintainer:	Tim Pope <vimNOSPAM@tpope.org>
-" Last Change:	2013 May 30
+" Last Change:	2022 Mar 15
 
 if exists("b:did_indent")
   finish
@@ -11,6 +11,8 @@ let b:did_indent = 1
 setlocal autoindent sw=2 et
 setlocal indentexpr=GetSassIndent()
 setlocal indentkeys=o,O,*<Return>,<:>,!^F
+
+let b:undo_indent = "setl ai< inde< indk<"
 
 " Only define the function once.
 if exists("*GetSassIndent")
@@ -29,9 +31,7 @@ function! GetSassIndent()
   let indent = indent(lnum)
   let cindent = indent(v:lnum)
   if line !~ s:property && line !~ s:extend && cline =~ s:property
-    return indent + &sw
-  "elseif line =~ s:property && cline !~ s:property
-    "return indent - &sw
+    return indent + shiftwidth()
   else
     return -1
   endif

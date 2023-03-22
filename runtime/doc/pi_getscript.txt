@@ -1,15 +1,15 @@
-*pi_getscript.txt*  For Vim version 7.0.  Last change: 2013 Nov 29
+*pi_getscript.txt*  For Vim version 9.0.  Last change: 2017 Aug 01
 >
 		GETSCRIPT REFERENCE MANUAL  by Charles E. Campbell
 <
-Authors:  Charles E. Campbell  <NdrOchip@ScampbellPfamilyA.Mbiz>
-	  (remove NOSPAM from the email address)
+Author:  Charles E. Campbell  <NcampObell@SdrPchip.AorgM-NOSPAM>
+	 (remove NOSPAM from the email address)
 						*GetLatestVimScripts-copyright*
 Copyright: (c) 2004-2012 by Charles E. Campbell	*glvs-copyright*
 	The VIM LICENSE (see |copyright|) applies to the files in this
 	package, including getscriptPlugin.vim, getscript.vim,
 	GetLatestVimScripts.dist, and pi_getscript.txt, except use "getscript"
-	instead of "VIM".  Like anything else that's free, getscript and its
+	instead of "Vim".  Like anything else that's free, getscript and its
 	associated files are provided *as is* and comes with no warranty of
 	any kind, either expressed or implied.  No guarantees of
 	merchantability.  No guarantees of suitability for any purpose.  By
@@ -24,7 +24,7 @@ get the latest versions of scripts listed therein from http://vim.sf.net/.
 
 ==============================================================================
 1. Contents				*glvs-contents* *glvs* *getscript*
-   					*GetLatestVimScripts*
+					*GetLatestVimScripts*
 
 	1. Contents........................................: |glvs-contents|
 	2. GetLatestVimScripts -- Getting Started..........: |glvs-install|
@@ -68,7 +68,7 @@ Your computer needs to have wget or curl for GetLatestVimScripts to do its work.
 		mv GetLatestVimScripts.dist GetLatestVimScripts.dat
 		(edit GetLatestVimScripts.dat to install your own personal
 		list of desired plugins -- see |GetLatestVimScripts_dat|)
-	
+
 	3. Windows:
 		vim getscript.vba
 		:so %
@@ -116,7 +116,7 @@ reflect the latest version of script(s) so downloaded.
 
 ==============================================================================
 4. GetLatestVimScripts Data File		*getscript-data* *glvs-data*
- 						*:GetLatestVimScripts_dat*
+						*:GetLatestVimScripts_dat*
 The data file <GetLatestVimScripts.dat> must have for its first two lines
 the following text:
 >
@@ -330,7 +330,7 @@ after/syntax/c.vim contained in it to overwrite a user's c.vim.
 		This variable holds the options to be used with the
 		g:GetLatestVimScripts_wget command.
 >
- 	g:GetLatestVimScripts_allowautoinstall
+	g:GetLatestVimScripts_allowautoinstall
 <	default= 1
 		This variable indicates whether GetLatestVimScripts is allowed
 		to attempt to automatically install scripts.  Furthermore, the
@@ -389,7 +389,7 @@ v36 Apr 22, 2013 : * (glts) suggested use of plugin/**/*.vim instead of
 		     plugin/*.vim in globpath() call.
 		   * (Andy Wokula) got warning message when setting
 		     g:loaded_getscriptPlugin
-v35 Apr 07, 2012 : * (MengHuan Yu) pointed out that the script url has
+v35 Apr 07, 2012 : * (MengHuan Yu) pointed out that the script URL has
 		     changed (somewhat).  However, it doesn't work, and
 		     the original one does (under Linux). I'll make it
 		     yet-another-option.
@@ -479,4 +479,4 @@ v2  May 14, 2003 :   extracts name of item to be obtained from the
                      and they became numbers.  Fixes comparison.
 
 ==============================================================================
-vim:tw=78:ts=8:ft=help:fdm=marker
+vim:tw=78:ts=8:noet:ft=help:fdm=marker

@@ -1,5 +1,5 @@
 ===============================================================================
-=    V í t e j t e   v  t u t o r i a l u   V I M       -    Verze 1.5        =
+=    V í t e j t e   v   t u t o r i a l u   V I M       -    Verze 1.5       =
 ===============================================================================
 
      Vim je velmi výkonný editor, který má příliš mnoho příkazů na to, aby
@@ -17,8 +17,8 @@
      To znamená, že je potřeba si příkazy vyzkoušet pro jejich správné
      naučení. Pokud si jen čteš text, příkazy zapomeneš!
 
-     Nyní se přesvědčte, že Shift-Lock NENÍ stlačený a několikrát stiskněte
-     klávesu  j   aby se kurzor posunul natolik, že lekce 1.1 zaplní celou
+     Nyní se přesvědčte, že Caps-Lock NENÍ stlačený a několikrát stiskněte
+     klávesu   j   aby se kurzor posunul natolik, že lekce 1.1 zaplní celou
      obrazovku.
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 			Lekce 1.1:  POHYB KURZORU
@@ -765,8 +765,8 @@ Poznámka: Tímto se vyhneš stisknutí  i  , posledního znaku, textu na vlože
   nastavení. Pro zapnutí některých vytvoř soubor "vimrc".
 
   1. Začni upravovat soubor "vimrc". Toto závisí na použitém systému:
-	:edit ~/.vimrc			pro Unix
-	:edit $VIM/_vimrc		pro MS-Windows
+	:edit ~/.vimrc		pro Unix
+	:edit ~/_vimrc		pro MS-Windows
 
   2. Nyní čti ukázkový "vimrc" soubor:
 
@@ -791,7 +791,7 @@ Poznámka: Tímto se vyhneš stisknutí  i  , posledního znaku, textu na vlože
 	Nakladatel: New Riders
   První kniha určená pro Vim. Obzvláště vhodná pro začátečníky.
   Obsahuje množství příkladů a obrázků.
-  viz http://iccf-holland.org/click5.html
+  viz https://iccf-holland.org/click5.html
 
   Tato kniha je starší a více věnovaná Vi než Vim, ale také doporučená:
 	Learning the Vi Editor - od Linda Lamb

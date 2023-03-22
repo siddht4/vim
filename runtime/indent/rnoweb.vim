@@ -2,7 +2,7 @@
 " Language:	Rnoweb
 " Author:	Jakson Alves de Aquino <jalvesaq@gmail.com>
 " Homepage:     https://github.com/jalvesaq/R-Vim-runtime
-" Last Change:	Tue Apr 07, 2015  04:38PM
+" Last Change:	Feb 25, 2023
 
 
 " Only load this indent file when no other was loaded.
@@ -10,14 +10,26 @@ if exists("b:did_indent")
   finish
 endif
 runtime indent/tex.vim
-let s:TeXIndent = function(substitute(&indentexpr, "()", "", ""))
-unlet b:did_indent
+
+function! s:NoTeXIndent()
+  return indent(line("."))
+endfunction
+
+if &indentexpr == "" || &indentexpr == "GetRnowebIndent()"
+  let s:TeXIndent = function("s:NoTeXIndent")
+else
+  let s:TeXIndent = function(substitute(&indentexpr, "()", "", ""))
+endif
+
+unlet! b:did_indent
 runtime indent/r.vim
 let s:RIndent = function(substitute(&indentexpr, "()", "", ""))
 let b:did_indent = 1
 
 setlocal indentkeys=0{,0},!^F,o,O,e,},=\bibitem,=\item
 setlocal indentexpr=GetRnowebIndent()
+
+let b:undo_indent = "setl inde< indk<"
 
 if exists("*GetRnowebIndent")
   finish

@@ -1,13 +1,12 @@
 " Vim syntax file
 " Language:     Coco/R
 " Maintainer:   Ashish Shukla <wahjava@gmail.com>
-" Last Change:  2007 Aug 10
+" Last Change:  2022 Jun 14
 " Remark:       Coco/R syntax partially implemented.
 " License:      Vim license
 
-if version < 600
-	syntax clear
-elseif exists("b:current_syntax")
+" quit when a syntax file was already loaded
+if exists("b:current_syntax")
 	finish
 endif
 
@@ -31,3 +30,4 @@ hi def link cocoOperator         Operator
 hi def link cocoProductionCode   Statement
 hi def link cocoPragma           Special
 
+let b:current_syntax = 'coco'

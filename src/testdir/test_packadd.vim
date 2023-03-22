@@ -1,7 +1,9 @@
 " Tests for 'packpath' and :packadd
 
+source check.vim
+
 func SetUp()
-  let s:topdir = expand('%:h') . '/Xdir'
+  let s:topdir = getcwd() . '/Xppdir'
   exe 'set packpath=' . s:topdir
   let s:plugdir = s:topdir . '/pack/mine/opt/mytest'
 endfunc
@@ -11,11 +13,25 @@ func TearDown()
 endfunc
 
 func Test_packadd()
+  if !exists('s:plugdir')
+    echomsg 'when running this test manually, call SetUp() first'
+    return
+  endif
+
   call mkdir(s:plugdir . '/plugin/also', 'p')
   call mkdir(s:plugdir . '/ftdetect', 'p')
+  call mkdir(s:plugdir . '/after', 'p')
   set rtp&
   let rtp = &rtp
   filetype on
+
+  let rtp_entries = split(rtp, ',')
+  for entry in rtp_entries
+    if entry =~? '\<after\>'
+      let first_after_entry = entry
+      break
+    endif
+  endfor
 
   exe 'split ' . s:plugdir . '/plugin/test.vim'
   call setline(1, 'let g:plugin_works = 42')
@@ -35,11 +51,45 @@ func Test_packadd()
   call assert_equal(77, g:plugin_also_works)
   call assert_equal(17, g:ftdetect_works)
   call assert_true(len(&rtp) > len(rtp))
-  call assert_true(&rtp =~ 'testdir/Xdir/pack/mine/opt/mytest\($\|,\)')
+  call assert_match('/testdir/Xppdir/pack/mine/opt/mytest\($\|,\)', &rtp)
+
+  let new_after = match(&rtp, '/testdir/Xppdir/pack/mine/opt/mytest/after,')
+  let forwarded = substitute(first_after_entry, '\\', '[/\\\\]', 'g')
+  let old_after = match(&rtp, ',' . forwarded . '\>')
+  call assert_true(new_after > 0, 'rtp is ' . &rtp)
+  call assert_true(old_after > 0, 'match ' . forwarded . ' in ' . &rtp)
+  call assert_true(new_after < old_after, 'rtp is ' . &rtp)
+
+  " NOTE: '/.../opt/myte' forwardly matches with '/.../opt/mytest'
+  call mkdir(fnamemodify(s:plugdir, ':h') . '/myte', 'p')
+  let rtp = &rtp
+  packadd myte
+
+  " Check the path of 'myte' is added
+  call assert_true(len(&rtp) > len(rtp))
+  call assert_match('/testdir/Xppdir/pack/mine/opt/myte\($\|,\)', &rtp)
 
   " Check exception
   call assert_fails("packadd directorynotfound", 'E919:')
   call assert_fails("packadd", 'E471:')
+endfunc
+
+func Test_packadd_start()
+  let plugdir = s:topdir . '/pack/mine/start/other'
+  call mkdir(plugdir . '/plugin', 'p')
+  set rtp&
+  let rtp = &rtp
+  filetype on
+
+  exe 'split ' . plugdir . '/plugin/test.vim'
+  call setline(1, 'let g:plugin_works = 24')
+  wq
+
+  packadd other
+
+  call assert_equal(24, g:plugin_works)
+  call assert_true(len(&rtp) > len(rtp))
+  call assert_match('/testdir/Xppdir/pack/mine/start/other\($\|,\)', &rtp)
 endfunc
 
 func Test_packadd_noload()
@@ -56,7 +106,7 @@ func Test_packadd_noload()
   packadd! mytest
 
   call assert_true(len(&rtp) > len(rtp))
-  call assert_true(&rtp =~ 'testdir/Xdir/pack/mine/opt/mytest\($\|,\)')
+  call assert_match('testdir/Xppdir/pack/mine/opt/mytest\($\|,\)', &rtp)
   call assert_equal(0, g:plugin_works)
 
   " check the path is not added twice
@@ -65,15 +115,85 @@ func Test_packadd_noload()
   call assert_equal(new_rtp, &rtp)
 endfunc
 
-" Check command-line completion for 'packadd'
+func Test_packadd_symlink_dir()
+  CheckUnix
+  let top2_dir = s:topdir . '/Xdir2'
+  let real_dir = s:topdir . '/Xsym'
+  call mkdir(real_dir, 'p')
+  exec "silent !ln -s Xsym"  top2_dir
+  let &rtp = top2_dir . ',' . top2_dir . '/after'
+  let &packpath = &rtp
+
+  let s:plugdir = top2_dir . '/pack/mine/opt/mytest'
+  call mkdir(s:plugdir . '/plugin', 'p')
+
+  exe 'split ' . s:plugdir . '/plugin/test.vim'
+  call setline(1, 'let g:plugin_works = 44')
+  wq
+  let g:plugin_works = 0
+
+  packadd mytest
+
+  " Must have been inserted in the middle, not at the end
+  call assert_match('/pack/mine/opt/mytest,', &rtp)
+  call assert_equal(44, g:plugin_works)
+
+  " No change when doing it again.
+  let rtp_before = &rtp
+  packadd mytest
+  call assert_equal(rtp_before, &rtp)
+
+  set rtp&
+  let rtp = &rtp
+  exec "silent !rm" top2_dir
+endfunc
+
+func Test_packadd_symlink_dir2()
+  CheckUnix
+  let top2_dir = s:topdir . '/Xdir2'
+  let real_dir = s:topdir . '/Xsym/pack'
+  call mkdir(top2_dir, 'p')
+  call mkdir(real_dir, 'p')
+  let &rtp = top2_dir . ',' . top2_dir . '/after'
+  let &packpath = &rtp
+
+  exec "silent !ln -s ../Xsym/pack"  top2_dir . '/pack'
+  let s:plugdir = top2_dir . '/pack/mine/opt/mytest'
+  call mkdir(s:plugdir . '/plugin', 'p')
+
+  exe 'split ' . s:plugdir . '/plugin/test.vim'
+  call setline(1, 'let g:plugin_works = 48')
+  wq
+  let g:plugin_works = 0
+
+  packadd mytest
+
+  " Must have been inserted in the middle, not at the end
+  call assert_match('/Xdir2/pack/mine/opt/mytest,', &rtp)
+  call assert_equal(48, g:plugin_works)
+
+  " No change when doing it again.
+  let rtp_before = &rtp
+  packadd mytest
+  call assert_equal(rtp_before, &rtp)
+
+  set rtp&
+  let rtp = &rtp
+  exec "silent !rm" top2_dir . '/pack'
+  exec "silent !rmdir" top2_dir
+endfunc
+
+" Check command-line completion for :packadd
 func Test_packadd_completion()
   let optdir1 = &packpath . '/pack/mine/opt'
   let optdir2 = &packpath . '/pack/candidate/opt'
 
   call mkdir(optdir1 . '/pluginA', 'p')
   call mkdir(optdir1 . '/pluginC', 'p')
+  call writefile([], optdir1 . '/unrelated')
   call mkdir(optdir2 . '/pluginB', 'p')
   call mkdir(optdir2 . '/pluginC', 'p')
+  call writefile([], optdir2 . '/unrelated')
 
   let li = []
   call feedkeys(":packadd \<Tab>')\<C-B>call add(li, '\<CR>", 't')
@@ -128,6 +248,18 @@ func Test_packloadall()
   call assert_equal(4321, g:plugin_bar_number)
 endfunc
 
+func Test_start_autoload()
+  " plugin foo with an autoload directory
+  let autodir = &packpath .. '/pack/mine/start/foo/autoload'
+  call mkdir(autodir, 'p')
+  let fname = autodir .. '/foobar.vim'
+  call writefile(['func foobar#test()',
+	\ '  return 1666',
+	\ 'endfunc'], fname)
+
+  call assert_equal(1666, foobar#test())
+endfunc
+
 func Test_helptags()
   let docdir1 = &packpath . '/pack/mine/start/foo/doc'
   let docdir2 = &packpath . '/pack/mine/start/bar/doc'
@@ -139,10 +271,12 @@ func Test_helptags()
 
   helptags ALL
 
-  let tags1 = readfile(docdir1 . '/tags') 
-  call assert_true(tags1[0] =~ 'look-here')
-  let tags2 = readfile(docdir2 . '/tags') 
-  call assert_true(tags2[0] =~ 'look-away')
+  let tags1 = readfile(docdir1 . '/tags')
+  call assert_match('look-here', tags1[0])
+  let tags2 = readfile(docdir2 . '/tags')
+  call assert_match('look-away', tags2[0])
+
+  call assert_fails('helptags abcxyz', 'E150:')
 endfunc
 
 func Test_colorscheme()
@@ -234,3 +368,79 @@ func Test_runtime()
   runtime! ALL extra/bar.vim
   call assert_equal('runstartopt', g:sequence)
 endfunc
+
+func Test_runtime_completion()
+  let rundir = &packpath . '/runtime/Aextra'
+  let startdir = &packpath . '/pack/mine/start/foo/Aextra'
+  let optdir = &packpath . '/pack/mine/opt/bar/Aextra'
+  call mkdir(rundir . '/Arunbaz', 'p')
+  call mkdir(startdir . '/Astartbaz', 'p')
+  call mkdir(optdir . '/Aoptbaz', 'p')
+  call writefile([], rundir . '/../Arunfoo.vim')
+  call writefile([], rundir . '/Arunbar.vim')
+  call writefile([], rundir . '/Aunrelated')
+  call writefile([], rundir . '/../Aunrelated')
+  call writefile([], startdir . '/../Astartfoo.vim')
+  call writefile([], startdir . '/Astartbar.vim')
+  call writefile([], startdir . '/Aunrelated')
+  call writefile([], startdir . '/../Aunrelated')
+  call writefile([], optdir . '/../Aoptfoo.vim')
+  call writefile([], optdir . '/Aoptbar.vim')
+  call writefile([], optdir . '/Aunrelated')
+  call writefile([], optdir . '/../Aunrelated')
+  exe 'set rtp=' . &packpath . '/runtime'
+
+  func Check_runtime_completion(arg, arg1, res)
+    call feedkeys(':runtime ' .. a:arg .. "\<C-A>\<C-B>\"\<CR>", 'xt')
+    call assert_equal('"runtime ' .. a:arg1 .. join(a:res), @:)
+    call assert_equal(a:res, getcompletion(a:arg, 'runtime'))
+  endfunc
+
+  call Check_runtime_completion('', '',
+        \ ['Aextra/', 'Arunfoo.vim', 'START', 'OPT', 'PACK', 'ALL'])
+  call Check_runtime_completion('S', '',
+        \ ['START'])
+  call Check_runtime_completion('O', '',
+        \ ['OPT'])
+  call Check_runtime_completion('P', '',
+        \ ['PACK'])
+  call Check_runtime_completion('A', '',
+        \ ['Aextra/', 'Arunfoo.vim', 'ALL'])
+  call Check_runtime_completion('Aextra/', '',
+        \ ['Aextra/Arunbar.vim', 'Aextra/Arunbaz/'])
+
+  call Check_runtime_completion('START ', 'START ',
+        \ ['Aextra/', 'Astartfoo.vim'])
+  call Check_runtime_completion('START A', 'START ',
+        \ ['Aextra/', 'Astartfoo.vim'])
+  call Check_runtime_completion('START Aextra/', 'START ',
+        \ ['Aextra/Astartbar.vim', 'Aextra/Astartbaz/'])
+
+  call Check_runtime_completion('OPT ', 'OPT ',
+        \ ['Aextra/', 'Aoptfoo.vim'])
+  call Check_runtime_completion('OPT A', 'OPT ',
+        \ ['Aextra/', 'Aoptfoo.vim'])
+  call Check_runtime_completion('OPT Aextra/', 'OPT ',
+        \ ['Aextra/Aoptbar.vim', 'Aextra/Aoptbaz/'])
+
+  call Check_runtime_completion('PACK ', 'PACK ',
+        \ ['Aextra/', 'Aoptfoo.vim', 'Astartfoo.vim'])
+  call Check_runtime_completion('PACK A', 'PACK ',
+        \ ['Aextra/', 'Aoptfoo.vim', 'Astartfoo.vim'])
+  call Check_runtime_completion('PACK Aextra/', 'PACK ',
+        \ ['Aextra/Aoptbar.vim', 'Aextra/Aoptbaz/',
+        \ 'Aextra/Astartbar.vim', 'Aextra/Astartbaz/'])
+
+  call Check_runtime_completion('ALL ', 'ALL ',
+        \ ['Aextra/', 'Aoptfoo.vim', 'Arunfoo.vim', 'Astartfoo.vim'])
+  call Check_runtime_completion('ALL A', 'ALL ',
+        \ ['Aextra/', 'Aoptfoo.vim', 'Arunfoo.vim', 'Astartfoo.vim'])
+  call Check_runtime_completion('ALL Aextra/', 'ALL ',
+        \ ['Aextra/Aoptbar.vim', 'Aextra/Aoptbaz/',
+        \ 'Aextra/Arunbar.vim', 'Aextra/Arunbaz/',
+        \ 'Aextra/Astartbar.vim', 'Aextra/Astartbaz/'])
+
+  delfunc Check_runtime_completion
+endfunc
+
+" vim: shiftwidth=2 sts=2 expandtab

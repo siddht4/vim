@@ -1,16 +1,14 @@
 " Vim syntax file
 " Language:          ReDIF
 " Maintainer:        Axel Castellane <axel.castellane@polytechnique.edu>
-" Last Change:       2013 April 17
+" Last Change:       2021 Jul 28
 " Original Author:   Axel Castellane
 " Source:            http://openlib.org/acmes/root/docu/redif_1.html
 " File Extension:    rdf
 " Note:              The ReDIF format is used by RePEc.
 
-" To be compatible with Vim 5.8 use:
-if version < 600
-  syntax clear
-elseif exists("b:current_syntax")
+" quit when a syntax file was already loaded
+if exists("b:current_syntax")
   finish
 endif
 
@@ -934,7 +932,7 @@ highlight redifFieldDeprecated term=undercurl cterm=undercurl gui=undercurl guis
 " Sync: The template-type (ReDIF-Paper, ReDIF-Archive, etc.) influences which
 " fields can follow. Thus sync must search backwards for it.
 "
-" I would like to simply ask VIM to search backward for the first occurence of
+" I would like to simply ask VIM to search backward for the first occurrence of
 " /^Template-Type:/, but it does not seem to be possible, so I have to start
 " from the beginning of the file... This might slow down a lot for files that
 " contain a lot of Template-Type statements.

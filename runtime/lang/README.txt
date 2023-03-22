@@ -1,7 +1,4 @@
-Language files for Vim
-
-Translated menus
-----------------
+Language files for Vim: Translated menus
 
 The contents of each menu file is a sequence of lines with "menutrans"
 commands.  Read one of the existing files to get an idea of how this works.
@@ -12,6 +9,9 @@ More information in the on-line help:
 	:help :menutrans
 	:help 'langmenu'
 	:help :language
+
+You can find a couple of helper tools for translating menus on github:
+https://github.com/adaext/vim-menutrans-helper
 
 The "$VIMRUNTIME/menu.vim" file will search for a menu translation file.  This
 depends on the value of the "v:lang" variable.
@@ -54,11 +54,3 @@ doing the conversion.  Let the UTF-8 menu file source the latin1 menu file,
 and put "scriptencoding latin1" in that one.
 Other conversions may not always be available (e.g., between iso-8859-# and
 MS-Windows codepages), thus the converted menu file must be available.
-
-
-Translated messages
--------------------
-
-This requires doing "make install" in the "src" directory.  It will compile
-the portable files "src/po/*.po" into binary ".mo" files and place them in the
-right directory.

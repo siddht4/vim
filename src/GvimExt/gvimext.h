@@ -31,7 +31,7 @@
 # define STRICT
 #endif
 
-#define INC_OLE2	// WIN32, get ole2 from windows.h
+#define INC_OLE2	// MS-Windows, get ole2 from windows.h
 
 /* Visual Studio 2005 has 'deprecated' many of the standard CRT functions */
 #if defined(_MSC_VER) && _MSC_VER >= 1400
@@ -44,12 +44,6 @@
 #include <shlobj.h>
 #include <wchar.h>
 
-/* Accommodate old versions of VC that don't have a modern Platform SDK */
-#if (defined(_MSC_VER) && _MSC_VER < 1300) || !defined(MAXULONG_PTR)
-# undef  UINT_PTR
-# define UINT_PTR UINT
-#endif
-
 #define ResultFromShort(i)  ResultFromScode(MAKE_SCODE(SEVERITY_SUCCESS, 0, (USHORT)(i)))
 
 // Initialize GUIDs (should be done only and at-least once per DLL/EXE)
@@ -57,7 +51,6 @@
 #pragma data_seg(".text")
 #define INITGUID
 #include <initguid.h>
-#include <shlguid.h>
 
 //
 // The class ID of this Shell extension class.
@@ -130,18 +123,12 @@ protected:
 	    int iShowCmd,
 	    int idHWnd);
 
-    STDMETHODIMP InvokeGvim(HWND hParent,
-	    LPCSTR pszWorkingDir,
-	    LPCSTR pszCmd,
-	    LPCSTR pszParam,
-	    int iShowCmd);
-
     STDMETHODIMP InvokeSingleGvim(HWND hParent,
-	    LPCSTR pszWorkingDir,
+	    LPCWSTR workingDir,
 	    LPCSTR pszCmd,
 	    LPCSTR pszParam,
 	    int iShowCmd,
-	    int useDiff);
+	    int gvimExtraOptions);
 
 public:
     int		 m_cntOfHWnd;

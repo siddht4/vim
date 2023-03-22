@@ -1,9 +1,9 @@
 " Vim indent file
 " Language:	Tera Term Language (TTL)
-"		Based on Tera Term Version 4.86
+"		Based on Tera Term Version 4.100
 " Maintainer:	Ken Takata
 " URL:		https://github.com/k-takata/vim-teraterm
-" Last Change:	2015 Jun 4
+" Last Change:	2021-10-18
 " Filenames:	*.ttl
 " License:	VIM License
 
@@ -18,20 +18,10 @@ setlocal indentexpr=GetTeraTermIndent(v:lnum)
 setlocal indentkeys=!^F,o,O,e
 setlocal indentkeys+==elseif,=endif,=loop,=next,=enduntil,=endwhile
 
+let b:undo_indent = "setl ai< inde< indk< si<"
+
 if exists("*GetTeraTermIndent")
   finish
-endif
-
-" The shiftwidth() function is relatively new.
-" Don't require it to exist.
-if exists('*shiftwidth')
-  function s:sw() abort
-    return shiftwidth()
-  endfunction
-else
-  function s:sw() abort
-    return &shiftwidth
-  endfunction
 endif
 
 function! GetTeraTermIndent(lnum)
@@ -48,17 +38,17 @@ function! GetTeraTermIndent(lnum)
 
   let l:ind = l:previ
 
-  if l:prevl =~ '^\s*if\>.*\<then\s*$'
+  if l:prevl =~ '^\s*if\>.*\<then\>'
     " previous line opened a block
-    let l:ind += s:sw()
+    let l:ind += shiftwidth()
   endif
   if l:prevl =~ '^\s*\%(elseif\|else\|do\|until\|while\|for\)\>'
     " previous line opened a block
-    let l:ind += s:sw()
+    let l:ind += shiftwidth()
   endif
   if l:thisl =~ '^\s*\%(elseif\|else\|endif\|enduntil\|endwhile\|loop\|next\)\>'
     " this line closed a block
-    let l:ind -= s:sw()
+    let l:ind -= shiftwidth()
   endif
 
   return l:ind

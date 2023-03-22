@@ -1,12 +1,15 @@
 " Vim script for Evim key bindings
 " Maintainer:	Bram Moolenaar <Bram@vim.org>
-" Last Change:	2006 Mar 29
+" Last Change:	2022 May 10
 
 " Don't use Vi-compatible mode.
 set nocompatible
 
 " Use the mswin.vim script for most mappings
 source <sfile>:p:h/mswin.vim
+
+" Allow for using CTRL-Q in Insert mode to quit Vim.
+inoremap <C-Q> <C-O>:confirm qall<CR>
 
 " Vim is in Insert mode by default
 set insertmode
@@ -49,18 +52,23 @@ if &t_Co > 2 || has("gui_running")
   nohlsearch
 endif
 
-" Only do this part when compiled with support for autocommands.
-if has("autocmd")
+" Enable file type detection.
+" Use the default filetype settings, so that mail gets 'tw' set to 72,
+" 'cindent' is on in C files, etc.
+" Also load indent files, to automatically do language-dependent indenting.
+filetype plugin indent on
 
-  " Enable file type detection.
-  " Use the default filetype settings, so that mail gets 'tw' set to 72,
-  " 'cindent' is on in C files, etc.
-  " Also load indent files, to automatically do language-dependent indenting.
-  filetype plugin indent on
+" For all text files set 'textwidth' to 78 characters.
+au FileType text setlocal tw=78
 
-  " For all text files set 'textwidth' to 78 characters.
-  au FileType text setlocal tw=78
-
-endif " has("autocmd")
+" Add optional packages.
+"
+" The matchit plugin makes the % command work better, but it is not backwards
+" compatible.
+" The ! means the package won't be loaded right away but when plugins are
+" loaded during initialization.
+if has('syntax') && has('eval')
+  packadd! matchit
+endif
 
 " vim: set sw=2 :

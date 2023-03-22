@@ -18,7 +18,7 @@
      používaním. To znamená, že je potrebné si príkazy vyskúšať, aby bolo
      učenie správne. Ak len čitas text, príkazy zabudneš!
 
-     Presvedč sa, že Shift-Lock NIEJE stlačený a stlačt klávesu
+     Presvedč sa, že Caps-Lock NIEJE stlačený a stlačt klávesu
      j  niekoľko krát, aby sa kurzor posunul natoľko, že lekcia 1.1
      celkom zaplní obrazovku.
 
@@ -916,7 +916,7 @@ POZNÁMKA: Ak chceš nerozlyšovať veľkosť písmen len pre jedno
 
   1. Začni editovať "vimrc" súbor, to závisí na použitom systéme:
 	:e ~/.vimrc      pre Unix
-	:e $VIM/_vimrc   pre MS-Windows
+	:e ~/_vimrc      pre MS-Windows
 
   2. Teraz si prečítaj text príkladu "vimrc" súboru:
 
@@ -986,7 +986,7 @@ POZNÁMKA: Dokončovanie funguje pre veľa príkazov. Vyskúšaj stlačenie
   Vydavateľ: New Riders
   Prvá kniha určená pre Vim. Špeciálne vhodná pre začiatočníkov.
   Obsahuje množstvo príkladov a obrázkov.
-  Pozri na http://iccf-holland.org/click5.html
+  Pozri na https://iccf-holland.org/click5.html
 
   Táto kniha je staršia a je viac o Vi ako o Vim, ale je tiež odporúčaná:
   Learning the Vi Editor - od Linda Lamb

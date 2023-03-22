@@ -3,7 +3,8 @@
 " Maintainer:	Josh Wainwright <wainwright DOT ja AT gmail DOT com>
 " Last Maintainer:	Andrew Rasmussen andyras@users.sourceforge.net
 " Original Maintainer:	John Hoelzel johnh51@users.sourceforge.net
-" Last Change:	2015-08-25
+" Last Change:	2021 Nov 16
+" 		additional changes from PR #8949
 " Filenames:	*.gnu *.plt *.gpi *.gih *.gp *.gnuplot scripts: #!*gnuplot
 " URL:		http://www.vim.org/scripts/script.php?script_id=4873
 " Original URL:	http://johnh51.get.to/vim/syntax/gnuplot.vim
@@ -20,9 +21,8 @@
 " For vim version 5.x: Clear all syntax items
 " For vim version 6.x: Quit when a syntax file was already loaded
 
-if version < 600
-  syntax clear
-elseif exists("b:current_syntax")
+" quit when a syntax file was already loaded
+if exists("b:current_syntax")
   finish
 endif
 
@@ -33,22 +33,22 @@ syn match gnuplotSpecial	"\\." contained
 " syn match gnuplotSpecial	"\\\o\o\o\|\\x\x\x\|\\c[^"]\|\\[a-z\\]" contained
 
 " measurements in the units in, cm and pt are special
-syn match gnuplotUnit		"[0-9]+in"
-syn match gnuplotUnit		"[0-9]+cm"
-syn match gnuplotUnit		"[0-9]+pt"
+syn match gnuplotUnit		"\d+in"
+syn match gnuplotUnit		"\d+cm"
+syn match gnuplotUnit		"\d+pt"
 
 " external (shell) commands are special
-syn region gnuplotExternal	start="!" end="$"
+syn region gnuplotExternal	start="^\s*!" end="$"
 
 " ---- Comments ---- "
 
-syn region gnuplotComment	start="#" end="$" contains=gnuplotTodo
+syn region gnuplotComment	start="#" end="$" contains=gnuplotTodo,@Spell
 
 " ---- Constants ---- "
 
 " strings
-syn region gnuplotString	start=+"+ skip=+\\"+ end=+"+ contains=gnuplotSpecial
-syn region gnuplotString	start="'" end="'"
+syn region gnuplotString	start=+"+ skip=+\\"+ end=+"+ contains=gnuplotSpecial,@Spell
+syn region gnuplotString	start="'" end="'" contains=@Spell
 
 " built-in variables
 syn keyword gnuplotNumber	GNUTERM GPVAL_TERM GPVAL_TERMOPTIONS GPVAL_SPLOT
@@ -77,7 +77,7 @@ syn keyword gnuplotNumber	GPVAL_TERM_YSIZE GPVAL_VIEW_MAP GPVAL_VIEW_ROT_X
 syn keyword gnuplotNumber	GPVAL_VIEW_ROT_Z GPVAL_VIEW_SCALE
 
 " function name variables
-syn match gnuplotNumber		"GPFUN_[a-zA-Z_]*"
+syn match gnuplotNumber		"GPFUN_\h*"
 
 " stats variables
 syn keyword gnuplotNumber	STATS_records STATS_outofrange STATS_invalid
@@ -105,23 +105,23 @@ syn keyword gnuplotError	FIT_LAMBDA_FACTOR FIT_LOG FIT_SCRIPT
 
 " integer number, or floating point number without a dot and with "f".
 syn case    ignore
-syn match   gnuplotNumber	"\<[0-9]\+\(u\=l\=\|lu\|f\)\>"
+syn match   gnuplotNumber	"\<\d\+\(u\=l\=\|lu\|f\)\>"
 
 " floating point number, with dot, optional exponent
-syn match   gnuplotFloat	"\<[0-9]\+\.[0-9]*\(e[-+]\=[0-9]\+\)\=[fl]\=\>"
+syn match   gnuplotFloat	"\<\d\+\.\d*\(e[-+]\=\d\+\)\=[fl]\=\>"
 
 " floating point number, starting with a dot, optional exponent
-syn match   gnuplotFloat	"\.[0-9]\+\(e[-+]\=[0-9]\+\)\=[fl]\=\>"
+syn match   gnuplotFloat	"\.\d\+\(e[-+]\=\d\+\)\=[fl]\=\>"
 
 " floating point number, without dot, with exponent
-syn match   gnuplotFloat	"\<[0-9]\+e[-+]\=[0-9]\+[fl]\=\>"
+syn match   gnuplotFloat	"\<\d\+e[-+]\=\d\+[fl]\=\>"
 
 " hex number
-syn match   gnuplotNumber	"\<0x[0-9a-f]\+\(u\=l\=\|lu\)\>"
+syn match   gnuplotNumber	"\<0x\x\+\(u\=l\=\|lu\)\>"
 syn case    match
 
 " flag an octal number with wrong digits by not highlighting
-syn match   gnuplotOctalError	"\<0[0-7]*[89]"
+syn match   gnuplotOctalError	"\<0\o*[89]"
 
 " ---- Identifiers: Functions ---- "
 
@@ -375,8 +375,8 @@ syn keyword gnuplotKeyword	nohead nooutliers nowedge off opaque outliers
 syn keyword gnuplotKeyword	palette pattern pi pointinterval pointsize
 syn keyword gnuplotKeyword	pointtype ps pt radius range rectangle
 syn keyword gnuplotKeyword	rowstacked screen separation size solid sorted
-syn keyword gnuplotKeyword	textbox transparent units unsorted userstyles
-syn keyword gnuplotKeyword	wedge x x2 xx xy yy
+syn keyword gnuplotKeyword	textbox units unsorted userstyles wedge
+syn keyword gnuplotKeyword	x x2 xx xy yy
 " set surface
 syn keyword gnuplotKeyword	surface implicit explicit
 " set table
@@ -478,9 +478,13 @@ syn keyword gnuplotKeyword	nooutput
 " keywords for 'test' command
 syn keyword gnuplotKeyword	terminal palette rgb rbg grb gbr brg bgr
 
+" The transparent gnuplot keyword cannot use 'syn keyword' as transparent
+" has a special meaning in :syntax commands.
+syn match gnuplotKeyword	"\<transparent\>"
+
 " ---- Macros ---- "
 
-syn region gnuplotMacro		start="@" end=" "
+syn match gnuplotMacro		"@\w*"
 
 " ---- Todos ---- "
 
@@ -501,54 +505,44 @@ syn keyword gnuplotStatement	shell splot spstats stats system test undefine
 syn keyword gnuplotStatement	unset update
 
 " ---- Define the default highlighting ---- "
-" For version 5.7 and earlier: only when not done already
-" For version 5.8 and later: only when an item doesn't have highlighting yet
-if version >= 508 || !exists("did_gnuplot_syntax_inits")
-  if version < 508
-    let did_gnuplot_syntax_inits = 1
-    command -nargs=+ HiLink hi link <args>
-  else
-    command -nargs=+ HiLink hi def link <args>
-  endif
+" Only when an item doesn't have highlighting yet
 
-  " ---- Comments ---- "
-  HiLink gnuplotComment		Comment
+" ---- Comments ---- "
+hi def link gnuplotComment		Comment
 
-  " ---- Constants ---- "
-  HiLink gnuplotString		String
-  HiLink gnuplotNumber		Number
-  HiLink gnuplotFloat		Float
+" ---- Constants ---- "
+hi def link gnuplotString		String
+hi def link gnuplotNumber		Number
+hi def link gnuplotFloat		Float
 
-  " ---- Identifiers ---- "
-  HiLink gnuplotIdentifier	Identifier
+" ---- Identifiers ---- "
+hi def link gnuplotIdentifier	Identifier
 
-  " ---- Statements ---- "
-  HiLink gnuplotConditional	Conditional
-  HiLink gnuplotRepeat		Repeat
-  HiLink gnuplotKeyword		Keyword
-  HiLink gnuplotOperator	Operator
+" ---- Statements ---- "
+hi def link gnuplotConditional	Conditional
+hi def link gnuplotRepeat		Repeat
+hi def link gnuplotKeyword		Keyword
+hi def link gnuplotOperator	Operator
 
-  " ---- PreProcs ---- "
-  HiLink gnuplotMacro		Macro
+" ---- PreProcs ---- "
+hi def link gnuplotMacro		Macro
 
-  " ---- Types ---- "
-  HiLink gnuplotStatement	Type
-  HiLink gnuplotFunc		Identifier
+" ---- Types ---- "
+hi def link gnuplotStatement	Type
+hi def link gnuplotFunc		Identifier
 
-  " ---- Specials ---- "
-  HiLink gnuplotSpecial		Special
-  HiLink gnuplotUnit		Special
-  HiLink gnuplotExternal	Special
+" ---- Specials ---- "
+hi def link gnuplotSpecial		Special
+hi def link gnuplotUnit		Special
+hi def link gnuplotExternal	Special
 
-  " ---- Errors ---- "
-  HiLink gnuplotError		Error
-  HiLink gnuplotOctalError	Error
+" ---- Errors ---- "
+hi def link gnuplotError		Error
+hi def link gnuplotOctalError	Error
 
-  " ---- Todos ---- "
-  HiLink gnuplotTodo		Todo
+" ---- Todos ---- "
+hi def link gnuplotTodo		Todo
 
-  delcommand HiLink
-endif
 
 let b:current_syntax = "gnuplot"
 

@@ -2,12 +2,13 @@
 "  Description: Perform Ada specific completion & tagging.
 "     Language: Ada (2005)
 "	   $Id: ada.vim 887 2008-07-08 14:29:01Z krischik $
-"   Maintainer: Martin Krischik <krischik@users.sourceforge.net>
+"   Maintainer: Mathias Brousset <mathiasb17@gmail.com>
+"		Martin Krischik <krischik@users.sourceforge.net>
 "		Taylor Venable <taylor@metasyntax.net>
 "		Neil Bird <neil@fnxweb.com>
 "		Ned Okie <nokie@radford.edu>
 "      $Author: krischik $
-"	 $Date: 2008-07-08 16:29:01 +0200 (Di, 08 Jul 2008) $
+"	 $Date: 2017-01-31 20:20:05 +0200 (Mon, 01 Jan 2017) $
 "      Version: 4.6
 "    $Revision: 887 $
 "     $HeadURL: https://gnuada.svn.sourceforge.net/svnroot/gnuada/trunk/tools/vim/autoload/ada.vim $
@@ -23,6 +24,7 @@
 "	        09.05.2007 MK Session just won't work no matter how much
 "			      tweaking is done
 "		19.09.2007 NO still some mapleader problems
+"		31.01.2017 MB fix more mapleader problems
 "    Help Page: ft-ada-functions
 "------------------------------------------------------------------------------
 
@@ -65,13 +67,13 @@ if exists ('g:ada_with_gnat_project_files')
     endfor
 endif
 
-" Section: add	standart exception {{{2
+" Section: add	standard exception {{{2
 "
 for Item in ['Constraint_Error', 'Program_Error', 'Storage_Error', 'Tasking_Error', 'Status_Error', 'Mode_Error', 'Name_Error', 'Use_Error', 'Device_Error', 'End_Error', 'Data_Error', 'Layout_Error', 'Length_Error', 'Pattern_Error', 'Index_Error', 'Translation_Error', 'Time_Error', 'Argument_Error', 'Tag_Error', 'Picture_Error', 'Terminator_Error', 'Conversion_Error', 'Pointer_Error', 'Dereference_Error', 'Update_Error']
     let g:ada#Keywords += [{
 	    \ 'word':  Item,
 	    \ 'menu':  'exception',
-	    \ 'info':  'Ada standart exception.',
+	    \ 'info':  'Ada standard exception.',
 	    \ 'kind':  'x',
 	    \ 'icase': 1}]
 endfor
@@ -208,7 +210,7 @@ function ada#Word (...)
    let l:Line = substitute (getline (l:Line_Nr), g:ada#Comment, '', '' )
 
    " Cope with tag searching for items in comments; if we are, don't loop
-   " backards looking for previous lines
+   " backwards looking for previous lines
    if l:Column_Nr > strlen(l:Line)
       " We were in a comment
       let l:Line = getline(l:Line_Nr)
@@ -447,7 +449,7 @@ function ada#Switch_Session (New_Session)
 
       if a:New_Session != v:this_session
 	 "
-	 "  We actualy got a new session - otherwise there
+	 "  We actually got a new session - otherwise there
 	 "  is nothing to do.
 	 "
 	 if strlen (v:this_session) > 0
@@ -585,11 +587,11 @@ function ada#Map_Menu (Text, Keys, Command)
 	\ " :"	  . a:Command . "<CR>"
       execute
 	\ "nnoremap <buffer>" .
-	\ escape(l:leader . "a" . a:Keys , '\') .
+	\ " <Leader>a" . a:Keys .
 	\" :" . a:Command
       execute
 	\ "inoremap <buffer>" .
-	\ escape(l:leader . "a" . a:Keys , '\') .
+	\ " <Leader>a" . a:Keys .
 	\" <C-O>:" . a:Command
    endif
    return

@@ -3,7 +3,6 @@ First test for undo working properly when executing commands from a register.
 Also test this in an empty buffer.
 
 STARTTEST
-:so tiny.vim
 G0"ay$k@au
 :new
 @auY:quit!

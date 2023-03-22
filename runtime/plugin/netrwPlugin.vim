@@ -1,9 +1,9 @@
 " netrwPlugin.vim: Handles file transfer and remote directory listing across a network
 "            PLUGIN SECTION
-" Date:		Feb 08, 2016
-" Maintainer:	Charles E Campbell <NdrOchip@ScampbellPfamily.AbizM-NOSPAM>
+" Date:		Feb 09, 2021
+" Maintainer:	Charles E Campbell <NcampObell@SdrPchip.AorgM-NOSPAM>
 " GetLatestVimScripts: 1075 1 :AutoInstall: netrw.vim
-" Copyright:    Copyright (C) 1999-2013 Charles E. Campbell {{{1
+" Copyright:    Copyright (C) 1999-2021 Charles E. Campbell {{{1
 "               Permission is hereby granted to use and distribute this code,
 "               with or without modifications, provided that this copyright
 "               notice is copied with it. Like anything else that's free,
@@ -20,7 +20,7 @@
 if &cp || exists("g:loaded_netrwPlugin")
  finish
 endif
-let g:loaded_netrwPlugin = "v155"
+let g:loaded_netrwPlugin = "v171"
 let s:keepcpo = &cpo
 set cpo&vim
 "DechoRemOn
@@ -42,14 +42,14 @@ augroup END
 " Network Browsing Reading Writing: {{{2
 augroup Network
  au!
- au BufReadCmd   file://*											call netrw#FileUrlRead(expand("<amatch>"))
- au BufReadCmd   ftp://*,rcp://*,scp://*,http://*,file://*,https://*,dav://*,davs://*,rsync://*,sftp://*	exe "sil doau BufReadPre ".fnameescape(expand("<amatch>"))|call netrw#Nread(2,expand("<amatch>"))|exe "sil doau BufReadPost ".fnameescape(expand("<amatch>"))
+ au BufReadCmd   file://*											call netrw#FileUrlEdit(expand("<amatch>"))
+ au BufReadCmd   ftp://*,rcp://*,scp://*,http://*,https://*,dav://*,davs://*,rsync://*,sftp://*	exe "sil doau BufReadPre ".fnameescape(expand("<amatch>"))|call netrw#Nread(2,expand("<amatch>"))|exe "sil doau BufReadPost ".fnameescape(expand("<amatch>"))
  au FileReadCmd  ftp://*,rcp://*,scp://*,http://*,file://*,https://*,dav://*,davs://*,rsync://*,sftp://*	exe "sil doau FileReadPre ".fnameescape(expand("<amatch>"))|call netrw#Nread(1,expand("<amatch>"))|exe "sil doau FileReadPost ".fnameescape(expand("<amatch>"))
  au BufWriteCmd  ftp://*,rcp://*,scp://*,http://*,file://*,dav://*,davs://*,rsync://*,sftp://*			exe "sil doau BufWritePre ".fnameescape(expand("<amatch>"))|exe 'Nwrite '.fnameescape(expand("<amatch>"))|exe "sil doau BufWritePost ".fnameescape(expand("<amatch>"))
  au FileWriteCmd ftp://*,rcp://*,scp://*,http://*,file://*,dav://*,davs://*,rsync://*,sftp://*			exe "sil doau FileWritePre ".fnameescape(expand("<amatch>"))|exe "'[,']".'Nwrite '.fnameescape(expand("<amatch>"))|exe "sil doau FileWritePost ".fnameescape(expand("<amatch>"))
- try                                                       
+ try
   au SourceCmd   ftp://*,rcp://*,scp://*,http://*,file://*,https://*,dav://*,davs://*,rsync://*,sftp://*	exe 'Nsource '.fnameescape(expand("<amatch>"))
- catch /^Vim\%((\a\+)\)\=:E216/                            
+ catch /^Vim\%((\a\+)\)\=:E216/
   au SourcePre   ftp://*,rcp://*,scp://*,http://*,file://*,https://*,dav://*,davs://*,rsync://*,sftp://*	exe 'Nsource '.fnameescape(expand("<amatch>"))
  endtry
 augroup END
@@ -59,7 +59,7 @@ com! -count=1 -nargs=*	Nread		let s:svpos= winsaveview()<bar>call netrw#NetRead(
 com! -range=% -nargs=*	Nwrite		let s:svpos= winsaveview()<bar><line1>,<line2>call netrw#NetWrite(<f-args>)<bar>call winrestview(s:svpos)
 com! -nargs=*		NetUserPass	call NetUserPass(<f-args>)
 com! -nargs=*	        Nsource		let s:svpos= winsaveview()<bar>call netrw#NetSource(<f-args>)<bar>call winrestview(s:svpos)
-com! -nargs=?		Ntree		call netrw#SetTreetop(<q-args>)
+com! -nargs=?		Ntree		call netrw#SetTreetop(1,<q-args>)
 
 " Commands: :Explore, :Sexplore, Hexplore, Vexplore, Lexplore {{{2
 com! -nargs=* -bar -bang -count=0 -complete=dir	Explore		call netrw#Explore(<count>,0,0+<bang>0,<q-args>)
@@ -81,13 +81,13 @@ if !exists("g:netrw_nogx")
   if !hasmapto('<Plug>NetrwBrowseX')
    nmap <unique> gx <Plug>NetrwBrowseX
   endif
-  nno <silent> <Plug>NetrwBrowseX :call netrw#BrowseX(expand((exists("g:netrw_gx")? g:netrw_gx : '<cfile>')),netrw#CheckIfRemote())<cr>
+  nno <silent> <Plug>NetrwBrowseX :call netrw#BrowseX(netrw#GX(),netrw#CheckIfRemote(netrw#GX()))<cr>
  endif
- if maparg('gx','v') == ""
+ if maparg('gx','x') == ""
   if !hasmapto('<Plug>NetrwBrowseXVis')
-   vmap <unique> gx <Plug>NetrwBrowseXVis
+   xmap <unique> gx <Plug>NetrwBrowseXVis
   endif
-  vno <silent> <Plug>NetrwBrowseXVis :<c-u>call netrw#BrowseXVis()<cr>
+  xno <silent> <Plug>NetrwBrowseXVis :<c-u>call netrw#BrowseXVis()<cr>
  endif
 endif
 if exists("g:netrw_usetab") && g:netrw_usetab
@@ -103,7 +103,7 @@ fun! s:LocalBrowse(dirname)
   " Unfortunate interaction -- only DechoMsg debugging calls can be safely used here.
   " Otherwise, the BufEnter event gets triggered when attempts to write to
   " the DBG buffer are made.
-  
+
   if !exists("s:vimentered")
    " If s:vimentered doesn't exist, then the VimEnter event hasn't fired.  It will,
    " and so s:VimEnter() will then be calling this routine, but this time with s:vimentered defined.
@@ -129,19 +129,17 @@ fun! s:LocalBrowse(dirname)
   elseif isdirectory(a:dirname)
 "   call Decho("(LocalBrowse) dirname<".a:dirname."> ft=".&ft."  (isdirectory, not amiga)")
 "   call Dredir("LocalBrowse ft last set: ","verbose set ft")
-"   call Decho("(s:LocalBrowse) COMBAK#23: buf#".bufnr("%")." file<".expand("%")."> line#".line(".")." col#".col("."))
-   sil! call netrw#LocalBrowseCheck(a:dirname)
-"   call Decho("(s:LocalBrowse) COMBAK#24: buf#".bufnr("%")." file<".expand("%")."> line#".line(".")." col#".col("."))
+   " Jul 13, 2021: for whatever reason, preceding the following call with
+   " a   sil!  causes an unbalanced if-endif vim error
+   call netrw#LocalBrowseCheck(a:dirname)
    if exists("w:netrw_bannercnt") && line('.') < w:netrw_bannercnt
     exe w:netrw_bannercnt
-"    call Decho("(s:LocalBrowse) COMBAK#25: buf#".bufnr("%")." file<".expand("%")."> line#".line(".")." col#".col("."))
    endif
 
   else
    " not a directory, ignore it
 "   call Decho("(LocalBrowse) dirname<".a:dirname."> not a directory, ignoring...")
   endif
-"  call Decho("(s:LocalBrowse) COMBAK#26: buf#".bufnr("%")." file<".expand("%")."> line#".line(".")." col#".col("."))
 
 "  call Dret("s:LocalBrowse")
 endfun
@@ -155,10 +153,22 @@ endfun
 "             has already been called.
 fun! s:VimEnter(dirname)
 "  call Dfunc("s:VimEnter(dirname<".a:dirname.">) expand(%)<".expand("%").">")
+  if has('nvim') || v:version < 802
+  " Johann Höchtl: reported that the call range... line causes an E488: Trailing characters
+  "                error with neovim. I suspect its because neovim hasn't updated with recent
+  "                vim patches. As is, this code will have problems with popup terminals
+  "                instantiated before the VimEnter event runs.
+  " Ingo Karkat  : E488 also in Vim 8.1.1602
   let curwin       = winnr()
   let s:vimentered = 1
   windo call s:LocalBrowse(expand("%:p"))
   exe curwin."wincmd w"
+ else
+  " the following complicated expression comes courtesy of lacygoill; largely does the same thing as the windo and 
+  " wincmd which are commented out, but avoids some side effects. Allows popup terminal before VimEnter.
+  let s:vimentered = 1
+  call range(1, winnr('$'))->map({_, v -> win_execute(win_getid(v), 'call expand("%:p")->s:LocalBrowse()')})
+ endif
 "  call Dret("s:VimEnter")
 endfun
 

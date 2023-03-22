@@ -1,4 +1,4 @@
-*usr_12.txt*	For Vim version 7.4.  Last change: 2007 May 11
+*usr_12.txt*	For Vim version 9.0.  Last change: 2022 Nov 19
 
 		     VIM USER MANUAL - by Bram Moolenaar
 
@@ -180,14 +180,14 @@ after it.  That way you don't have this problem again.
 The |:global| command can be combined with the |:move| command to move all the
 lines before the first line, resulting in a reversed file.  The command is: >
 
-	:global/^/m 0
+	:global/^/move 0
 
 Abbreviated: >
 
 	:g/^/m 0
 
 The "^" regular expression matches the beginning of the line (even if the line
-is blank).  The |:move| command moves the matching line to after the mythical
+is blank).  The |:move| command moves the matching line to after the imaginary
 zeroth line, so the current matching line becomes the first line of the file.
 As the |:global| command is not confused by the changing line numbering,
 |:global| proceeds to match all remaining lines of the file and puts each as
@@ -290,7 +290,7 @@ command: >
 The line range "%" is used, thus this works on the whole file.  The pattern
 that the ":substitute" command matches with is "\s\+$".  This finds white
 space characters (\s), 1 or more of them (\+), before the end-of-line ($).
-Later will be explained how you write patterns like this |usr_27.txt|.
+Later will be explained how you write patterns like this, see |usr_27.txt|.
    The "to" part of the substitute command is empty: "//".  Thus it replaces
 with nothing, effectively deleting the matched white space.
 
@@ -355,4 +355,4 @@ matches and where they are.
 
 Next chapter: |usr_20.txt|  Typing command-line commands quickly
 
-Copyright: see |manual-copyright|  vim:tw=78:ts=8:ft=help:norl:
+Copyright: see |manual-copyright|  vim:tw=78:ts=8:noet:ft=help:norl:

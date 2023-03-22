@@ -1,6 +1,6 @@
 " Vim syntax support file
 " Maintainer:	Bram Moolenaar <Bram@vim.org>
-" Last Change:	2012 Sep 25
+" Last Change:	2022 Apr 12
 
 " This file sets up for syntax highlighting.
 " It is loaded from "syntax.vim" and "manual.vim".
@@ -37,7 +37,7 @@ fun! s:SynSet()
     unlet b:current_syntax
   endif
 
-  let s = expand("<amatch>")
+  0verbose let s = expand("<amatch>")
   if s == "ON"
     " :set syntax=ON
     if &filetype == ""
@@ -52,9 +52,11 @@ fun! s:SynSet()
 
   if s != ""
     " Load the syntax file(s).  When there are several, separated by dots,
-    " load each in sequence.
+    " load each in sequence.  Skip empty entries.
     for name in split(s, '\.')
-      exe "runtime! syntax/" . name . ".vim syntax/" . name . "/*.vim"
+      if !empty(name)
+	exe "runtime! syntax/" . name . ".vim syntax/" . name . "/*.vim"
+      endif
     endfor
   endif
 endfun
@@ -69,8 +71,11 @@ au Syntax c,cpp,cs,idl,java,php,datascript
 
 
 " Source the user-specified syntax highlighting file
-if exists("mysyntaxfile") && filereadable(expand(mysyntaxfile))
-  execute "source " . mysyntaxfile
+if exists("mysyntaxfile")
+  let s:fname = expand(mysyntaxfile)
+  if filereadable(s:fname)
+    execute "source " . fnameescape(s:fname)
+  endif
 endif
 
 " Restore 'cpoptions'

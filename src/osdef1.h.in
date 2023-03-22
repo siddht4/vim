@@ -50,12 +50,7 @@ extern int	poll(struct pollfd *, long, int);
 #ifdef HAVE_MEMSET
 extern void	*memset(void *, int, size_t);
 #endif
-#ifdef HAVE_BCMP
-extern int	bcmp(void *, void *, size_t);
-#endif
-#ifdef HAVE_MEMCMP
 extern int	memcmp(const void *, const void *, size_t);
-#endif
 #ifdef HAVE_STRPBRK
 extern char	*strpbrk(const char *, const char *);
 #endif
@@ -70,8 +65,10 @@ extern void	memmove(char *, char *, int);
 #  endif
 # endif
 #endif
-/* used inside of FD_ZERO macro: */
+#if !defined(__BIONIC__) && !defined(__HAIKU__)  // Android's libc #defines bzero to memset.
+// used inside of FD_ZERO macro
 extern void	bzero(void *, size_t);
+#endif
 #ifdef HAVE_SETSID
 extern pid_t	setsid(void);
 #endif
@@ -108,9 +105,9 @@ extern int	waitpid(pid_t, int *, int);
 extern int	toupper(int);
 extern int	tolower(int);
 
-extern RETSIGTYPE (*signal(int, RETSIGTYPE (*func) SIGPROTOARG)) SIGPROTOARG;
+extern void (*signal(int, void (*func) SIGPROTOARG)) SIGPROTOARG;
 #ifdef HAVE_SIGSET
-extern RETSIGTYPE (*sigset(int, RETSIGTYPE (*func) SIGPROTOARG)) SIGPROTOARG;
+extern void (*sigset(int, void (*func) SIGPROTOARG)) SIGPROTOARG;
 #endif
 
 #if defined(HAVE_SETJMP_H)

@@ -1,21 +1,16 @@
 " Vim syntax file
-" This is a GENERATED FILE. Please always refer to source file at the URI below.
 " Language: XF86Config (XFree86 configuration file)
 " Former Maintainer: David Ne\v{c}as (Yeti) <yeti@physics.muni.cz>
-" Last Change: 2010 Nov 01
-" URL: http://trific.ath.cx/Ftp/vim/syntax/xf86conf.vim
+" Last Change By David: 2010 Nov 01
+" Last Change: 2023 Jan 23
 " Required Vim Version: 6.0
 "
 " Options: let xf86conf_xfree86_version = 3 or 4
-"							 to force XFree86 3.x or 4.x XF86Config syntax
+"          to force XFree86 3.x or 4.x XF86Config syntax
 
 " Setup
-if version >= 600
-	if exists("b:current_syntax")
-		finish
-	endif
-else
-	echo "Sorry, but this syntax file relies on Vim 6 features.	 Either upgrade Vim or usea version of " . expand("<sfile>:t:r") . " syntax file appropriate for Vim " . version/100 . "." . version %100 . "."
+" quit when a syntax file was already loaded
+if exists("b:current_syntax")
 	finish
 endif
 
@@ -151,6 +146,8 @@ syn keyword xf86confKeyword Hskew HTimings InputDevice IOBase MemBase Mode nextg
 syn keyword xf86confKeyword Modes Ramdac Screen TextClockFreq UseModes VendorName nextgroup=xf86confComment,xf86confValue
 syn keyword xf86confKeyword VertRefresh VideoRam ViewPort Virtual VScan VTimings nextgroup=xf86confComment,xf86confValue
 syn keyword xf86confKeyword Weight White nextgroup=xf86confComment,xf86confValue
+syn keyword xf86confMatch MatchDevicePath MatchDriver MatchLayout MatchOS MatchPnPID MatchProduct MatchTag MatchUSBID MatchVendor nextgroup=xf86confComment,xf86confString skipwhite
+syn keyword xf86confMatch MatchIsPointer MatchIsKeyboard MatchIsTouchpad MatchIsTouchscreen MatchIsJoystick nextgroup=xf86confComment,xf86confValue skipwhite
 syn keyword xf86confModeLine ModeLine nextgroup=xf86confComment,xf86confModeLineValue skipwhite skipnl
 
 " Constants
@@ -189,6 +186,7 @@ hi def link xf86confOctalNumberError xf86confError
 hi def link xf86confError Error
 
 hi def link xf86confOption xf86confKeyword
+hi def link xf86confMatch xf86confKeyword
 hi def link xf86confModeLine xf86confKeyword
 hi def link xf86confKeyword Type
 

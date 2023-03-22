@@ -1,7 +1,7 @@
 " Vim syntax file
 " Language:	Vim help file
 " Maintainer:	Bram Moolenaar (Bram@vim.org)
-" Last Change:	2016 Apr 01
+" Last Change:	2022 Nov 13
 
 " Quit when a (custom) syntax file was already loaded
 if exists("b:current_syntax")
@@ -11,7 +11,7 @@ endif
 let s:cpo_save = &cpo
 set cpo&vim
 
-syn match helpHeadline		"^[-A-Z .][-A-Z0-9 .()]*[ \t]\+\*"me=e-1
+syn match helpHeadline		"^[A-Z.][-A-Z0-9 .,()_']*?\=\ze\(\s\+\*\|$\)"
 syn match helpSectionDelim	"^===.*===$"
 syn match helpSectionDelim	"^---.*--$"
 if has("conceal")
@@ -44,6 +44,7 @@ syn match helpVim		"\<Vim version [0-9][0-9.a-z]*"
 syn match helpVim		"VIM REFERENCE.*"
 syn match helpOption		"'[a-z]\{2,\}'"
 syn match helpOption		"'t_..'"
+syn match helpNormal		"'ab'"
 syn match helpCommand		"`[^` \t]\+`"hs=s+1,he=e-1 contains=helpBacktick
 syn match helpCommand		"\(^\|[^a-z"[]\)\zs`[^`]\+`\ze\([^a-z\t."']\|$\)"hs=s+1,he=e-1 contains=helpBacktick
 syn match helpHeader		"\s*\zs.\{-}\ze\s\=\~$" nextgroup=helpIgnore
@@ -54,10 +55,13 @@ else
   syn match helpIgnore		"." contained
 endif
 syn keyword helpNote		note Note NOTE note: Note: NOTE: Notes Notes:
+syn keyword helpWarning		WARNING WARNING: Warning:
+syn keyword helpDeprecated	DEPRECATED DEPRECATED: Deprecated:
 syn match helpSpecial		"\<N\>"
 syn match helpSpecial		"\<N\.$"me=e-1
 syn match helpSpecial		"\<N\.\s"me=e-2
 syn match helpSpecial		"(N\>"ms=s+1
+
 syn match helpSpecial		"\[N]"
 " avoid highlighting N  N in help.txt
 syn match helpSpecial		"N  N"he=s+1
@@ -73,6 +77,7 @@ syn match helpSpecial		"\[line]"
 syn match helpSpecial		"\[count]"
 syn match helpSpecial		"\[offset]"
 syn match helpSpecial		"\[cmd]"
+syn match helpNormal		"vim9\[cmd]"
 syn match helpSpecial		"\[num]"
 syn match helpSpecial		"\[+num]"
 syn match helpSpecial		"\[-num]"
@@ -83,7 +88,11 @@ syn match helpSpecial		"\[arguments]"
 syn match helpSpecial		"\[ident]"
 syn match helpSpecial		"\[addr]"
 syn match helpSpecial		"\[group]"
+" Don't highlight [converted] and others that do not have a tag
+syn match helpNormal		"\[\(readonly\|fifo\|socket\|converted\|crypted\)]"
+
 syn match helpSpecial		"CTRL-."
+syn match helpSpecial		"CTRL-SHIFT-."
 syn match helpSpecial		"CTRL-Break"
 syn match helpSpecial		"CTRL-PageUp"
 syn match helpSpecial		"CTRL-PageDown"
@@ -169,6 +178,8 @@ hi def link helpOption		Type
 hi def link helpNotVi		Special
 hi def link helpSpecial		Special
 hi def link helpNote		Todo
+hi def link helpWarning		Todo
+hi def link helpDeprecated	Todo
 
 hi def link helpComment		Comment
 hi def link helpConstant	Constant
@@ -204,6 +215,12 @@ hi def link helpUnderlined	Underlined
 hi def link helpError		Error
 hi def link helpTodo		Todo
 hi def link helpURL		String
+
+if has('textprop') && expand('%:p') =~ '[/\\]doc[/\\]syntax.txt'
+  " highlight groups with their respective color
+  import 'dist/vimhelp.vim'
+  call vimhelp.HighlightGroups()
+endif
 
 let b:current_syntax = "help"
 

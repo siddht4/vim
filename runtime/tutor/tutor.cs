@@ -1,5 +1,5 @@
 ===============================================================================
-=    V í t e j t e   v  t u t o r i a l u   V I M       -    Verze 1.5        =
+=    V í t e j t e   v   t u t o r i a l u   V I M       -    Verze 1.5       =
 ===============================================================================
 
      Vim je velmi výkonný editor, který má pøíli¹ mnoho pøíkazù na to, aby
@@ -17,8 +17,8 @@
      To znamená, ¾e je potøeba si pøíkazy vyzkou¹et pro jejich správné
      nauèení. Pokud si jen ète¹ text, pøíkazy zapomene¹!
 
-     Nyní se pøesvìdète, ¾e Shift-Lock NENÍ stlaèený a nìkolikrát stisknìte
-     klávesu  j   aby se kurzor posunul natolik, ¾e lekce 1.1 zaplní celou
+     Nyní se pøesvìdète, ¾e Caps-Lock NENÍ stlaèený a nìkolikrát stisknìte
+     klávesu   j   aby se kurzor posunul natolik, ¾e lekce 1.1 zaplní celou
      obrazovku.
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 			Lekce 1.1:  POHYB KURZORU
@@ -765,8 +765,8 @@ Poznámka: Tímto se vyhne¹ stisknutí  i  , posledního znaku, textu na vlo¾ení,
   nastavení. Pro zapnutí nìkterých vytvoø soubor "vimrc".
 
   1. Zaèni upravovat soubor "vimrc". Toto závisí na pou¾itém systému:
-	:edit ~/.vimrc			pro Unix
-	:edit $VIM/_vimrc		pro MS-Windows
+	:edit ~/.vimrc		pro Unix
+	:edit ~/_vimrc		pro MS-Windows
 
   2. Nyní èti ukázkový "vimrc" soubor:
 
@@ -791,7 +791,7 @@ Poznámka: Tímto se vyhne¹ stisknutí  i  , posledního znaku, textu na vlo¾ení,
 	Nakladatel: New Riders
   První kniha urèená pro Vim. Obzvlá¹tì vhodná pro zaèáteèníky.
   Obsahuje mno¾ství pøíkladù a obrázkù.
-  viz http://iccf-holland.org/click5.html
+  viz https://iccf-holland.org/click5.html
 
   Tato kniha je star¹í a více vìnovaná Vi ne¾ Vim, ale také doporuèená:
 	Learning the Vi Editor - od Linda Lamb

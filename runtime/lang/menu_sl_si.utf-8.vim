@@ -1,8 +1,9 @@
 " Menu Translations:	Slovenian / Slovensko
 " Maintainer:		Mojca Miklavec <mojca.miklavec.lists@gmail.com>
 " Originally By:	Mojca Miklavec <mojca.miklavec.lists@gmail.com>
-" Last Change:		Sat, 17 Jun 2006
+" Last Change:		2020 Apr 23
 " vim:set foldmethod=marker tabstop=8:
+" Original translations
 
 " TODO: add/check all '&'s
 
@@ -31,7 +32,7 @@ menutrans E&xit<Tab>:qa			&Izhod<Tab>:qa
 
 if has("diff")
     menutrans Split\ &Diff\ with\.\.\.	Primerjaj\ z\ (di&ff)\ \.\.\.
-    menutrans Split\ Patched\ &By\.\.\.	&Popravi\ z\ (patch)\ \.\.\.
+    menutrans Split\ Patched\ &By\.\.\.	&Popravi\ s\ (patch)\ \.\.\.
 endif
 " }}} FILE / DATOTEKA
 
@@ -96,12 +97,12 @@ menutrans Soft\ &Tabstop				Širina\ &tabulatorja
 menutrans Te&xt\ Width\.\.\.				Širina\ besedila\ \.\.\.
 menutrans &File\ Format\.\.\.				Format\ &datoteke\ \.\.\.
 menutrans C&olor\ Scheme				&Barvna\ shema\ \.\.\.
-menutrans &Keymap					&Keymap
+menutrans &Keymap					Razporeditev\ tip&k
 menutrans Select\ Fo&nt\.\.\.				Pisava\ \.\.\.
 " }}} EDIT / UREDI
 
 " {{{  TOOLS / ORODJA
-menutrans &Tools					&Orodja
+menutrans &Tools					O&rodja
 menutrans &Jump\ to\ this\ tag<Tab>g^]			&Skoči\ k\ tej\ znački<Tab>g^]
 menutrans Jump\ &back<Tab>^T				Skoči\ Na&zaj<Tab>^T
 menutrans Build\ &Tags\ File				Napravi\ datoteke\ z\ značkami\ (tag)
@@ -113,29 +114,29 @@ if has("spell")
     menutrans To\ &Previous\ error<Tab>[s		K\ &prejšnji\ napaki<Tab>[s
     menutrans Suggest\ &Corrections<Tab>z=		Predlagaj\ popravek<Tab>z=
     menutrans &Repeat\ correction<Tab>:spellrepall	Po&novi\ popravke\ na\ vseh\ besedah<Tab>:spellrepall
-    menutrans Set\ language\ to\ "en"			Angleški\ "en"
-    menutrans Set\ language\ to\ "en_au"		Angleški\ "en_au"
-    menutrans Set\ language\ to\ "en_ca"		Angleški\ "en_ca"
-    menutrans Set\ language\ to\ "en_gb"		Angleški\ "en_gb"
-    menutrans Set\ language\ to\ "en_nz"		Angleški\ "en_nz"
-    menutrans Set\ language\ to\ "en_us"		Angleški\ "en_us"
-    menutrans Set\ language\ to\ "sl"			Slovenski\ "sl"
-    menutrans Set\ language\ to\ "de"			Nemški\ "de"
+    menutrans Set\ language\ to\ "en"			Črkovalnik:\ angleški\ "en"
+    menutrans Set\ language\ to\ "en_au"		Črkovalnik:\ angleški\ "en_au"
+    menutrans Set\ language\ to\ "en_ca"		Črkovalnik:\ angleški\ "en_ca"
+    menutrans Set\ language\ to\ "en_gb"		Črkovalnik:\ angleški\ "en_gb"
+    menutrans Set\ language\ to\ "en_nz"		Črkovalnik:\ angleški\ "en_nz"
+    menutrans Set\ language\ to\ "en_us"		Črkovalnik:\ angleški\ "en_us"
+    menutrans Set\ language\ to\ "sl"			Črkovalnik:\ slovenski\ "sl"
+    menutrans Set\ language\ to\ "de"			Črkovalnik:\ nemški\ "de"
     menutrans Set\ language\ to\ 			Črkovalnik:\
     menutrans &Find\ More\ Languages			&Ostali\ jeziki
 endif
 if has("folding")
-  menutrans &Folding					Zvijanje\ kode
+  menutrans &Folding					Zavihek
   " open close folds
-  menutrans &Enable/Disable\ folds<Tab>zi		Omogoči/onemogoči\ zvijanje<Tab>zi " Omogoči/onemogoči\ zavihke
-  menutrans &View\ Cursor\ Line<Tab>zv			Pokaži\ vrstico\ s\ kazalčkom<Tab>zv " kjer je kazalec
-  menutrans Vie&w\ Cursor\ Line\ only<Tab>zMzx		Pokaži\ samo\ vrstico\ s\ kazalčkom<Tab>zMzx
-  menutrans C&lose\ more\ folds<Tab>zm			Zvij\ naslednji\ nivo<Tab>zm " Zapri\ več\ zavihkov
-  menutrans &Close\ all\ folds<Tab>zM			Zvij\ vso\ kodo<Tab>zM " Zapri\ vse\ zavihke
-  menutrans O&pen\ more\ folds<Tab>zr			Razvij\ en\ nivo<Tab>zr " Odpri\ več\ zavihkov
-  menutrans &Open\ all\ folds<Tab>zR			Razvij\ vso\ kodo<Tab>zR " Odpri\ vse\ zavihke
+  menutrans &Enable/Disable\ folds<Tab>zi		Omogoči/onemogoči\ zavihke<Tab>zi
+  menutrans &View\ Cursor\ Line<Tab>zv			Pokaži\ vrstico\ s\ kazalcem<Tab>zv " kjer je kazalec
+  menutrans Vie&w\ Cursor\ Line\ only<Tab>zMzx		Pokaži\ samo\ vrstico\ s\ kazalcem<Tab>zMzx
+  menutrans C&lose\ more\ folds<Tab>zm			Zapri\ več\ zavihkov<Tab>zm
+  menutrans &Close\ all\ folds<Tab>zM			Zapri\ vse\ zavihke<Tab>zM
+  menutrans O&pen\ more\ folds<Tab>zr			Odpri\ več\ zavihkov<Tab>zr
+  menutrans &Open\ all\ folds<Tab>zR			Odpri\ vse\ zavihke<Tab>zR
   " fold method
-  menutrans Fold\ Met&hod				Kriterij\ za\ zvijanje " Ustvarjanje\ zavihkov
+  menutrans Fold\ Met&hod				Ustvarjanje\ zavihkov
   menutrans M&anual					&Ročno
   menutrans I&ndent					Glede\ na\ &poravnavo
   menutrans E&xpression					Z\ &izrazi\ (foldexpr)
@@ -144,17 +145,17 @@ if has("folding")
   menutrans Ma&rker					Z\ &markerji/označbami
   " create and delete folds
   " TODO accelerators
-  menutrans Create\ &Fold<Tab>zf			Ustvari\ zvitek<Tab>zf
-  menutrans &Delete\ Fold<Tab>zd			Izbriši\ zvitek<Tab>zd
-  menutrans Delete\ &All\ Folds<Tab>zD			Izbriši\ vse\ zvitke<Tab>zD
+  menutrans Create\ &Fold<Tab>zf			Ustvari\ zavihek<Tab>zf
+  menutrans &Delete\ Fold<Tab>zd			Izbriši\ zavihek<Tab>zd
+  menutrans Delete\ &All\ Folds<Tab>zD			Izbriši\ vse\ zavihke<Tab>zD
   " moving around in folds
-  menutrans Fold\ column\ &width			Širina\ drevesa\ z\ zvitki
+  menutrans Fold\ column\ &width			Širina\ stolpca\ z\ zavihkom
 endif  " has folding
 
 if has("diff")
   menutrans &Diff					Razlike\ (&Diff)
   menutrans &Update					&Posodobi<Tab>
-  menutrans &Get\ Block					&Sprejmi\ (spremeni\ to\ okno) " XXX: check if translation is OK
+  menutrans &Get\ Block					&Sprejmi\ (spremeni\ to\ okno) " TODO: check if translation is OK
   menutrans &Put\ Block					&Pošlji\ (spremeni\ drugo\ okno)
 endif
 
@@ -175,7 +176,7 @@ menutrans &Set\ Compiler				Nastavi\ &prevajalnik
 menutrans Se&T\ Compiler				Nastavi\ &prevajalnik " bug in original translation?
 
 menutrans &Convert\ to\ HEX<Tab>:%!xxd			Pretvori\ v\ HE&X<Tab>:%!xxd
-menutrans Conve&rt\ back<Tab>:%!xxd\ -r			Pretvori\ nazaj<Tab>:%!xxd\ -r
+menutrans Conve&rt\ back<Tab>:%!xxd\ -r			Povrni\ pretvo&rbo<Tab>:%!xxd\ -r
 " }}}  TOOLS / ORODJA
 
 " {{{ SYNTAX / BARVANJE KODE
@@ -242,7 +243,7 @@ menutrans &About		&O\ programu
 " {{{ POPUP
 menutrans &Undo				&Razveljavi
 menutrans Cu&t				&Izreži
-menutrans &Copy				&Kopieraj
+menutrans &Copy				&Kopiraj
 menutrans &Paste			&Prilepi
 menutrans &Delete			&Zbriši
 menutrans Select\ Blockwise		Izbiraj\ po\ blokih
@@ -251,7 +252,7 @@ menutrans Select\ &Sentence		Izberi\ &stavek
 menutrans Select\ Pa&ragraph		Izberi\ &odstavek
 menutrans Select\ &Line			Izberi\ vrs&tico
 menutrans Select\ &Block		Izberi\ b&lok
-menutrans &Select\ All<Tab>ggVG		Izberi\ &vse<Tab>ggVG
+menutrans Select\ &All			Izberi\ &vse
 " }}} POPUP
 
 " {{{ TOOLBAR

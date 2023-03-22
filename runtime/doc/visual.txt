@@ -1,4 +1,4 @@
-*visual.txt*    For Vim version 7.4.  Last change: 2014 Mar 23
+*visual.txt*    For Vim version 9.0.  Last change: 2022 Dec 04
 
 
 		  VIM REFERENCE MANUAL    by Bram Moolenaar
@@ -20,8 +20,6 @@ This is introduced in section |04.4| of the user manual.
 7. Examples				|visual-examples|
 8. Select mode				|Select-mode|
 
-{Vi has no Visual mode, the name "visual" is used for Normal mode, to
-distinguish it from Ex mode}
 {Since Vim 7.4.200 the |+visual| feature is always included}
 
 ==============================================================================
@@ -118,13 +116,16 @@ gn			Search forward for the last used search pattern, like
 			E.g., "dgn" deletes the text of the next match.
 			If Visual mode is active, extends the selection
 			until the end of the next match.
+			'wrapscan' applies.
+			Note: Unlike `n` the search direction does not depend
+			on the previous search command.
 
 								*gN* *v_gN*
 gN			Like |gn| but searches backward, like with `N`.
 
 							*<LeftMouse>*
 <LeftMouse>		Set the current cursor position.  If Visual mode is
-			active it is stopped.  Only when 'mouse' option is
+			active it is stopped.  Only when 'mouse' option
 			contains 'n' or 'a'.  If the position is within 'so'
 			lines from the last line on the screen the text is
 			scrolled up.  If the position is within 'so' lines from
@@ -135,7 +136,7 @@ gN			Like |gn| but searches backward, like with `N`.
 <RightMouse>		Start Visual mode if it is not active.  The text from
 			the cursor position to the position of the click is
 			highlighted.  If Visual mode was already active move
-			the start or end of the highlighted text, which ever
+			the start or end of the highlighted text, whichever
 			is closest, to the position of the click.  Only when
 			'mouse' option contains 'n' or 'a'.
 
@@ -150,6 +151,11 @@ gN			Like |gn| but searches backward, like with `N`.
 			display where the xterm is running (via the DISPLAY
 			environment variable or the -display argument).  Only
 			when 'mouse' option contains 'n' or 'a'.
+
+<LeftMouseNM>		Internal mouse code, used for clicking on the status
+<LeftReleaseNM>		line to focus a window.  NM stands for non-mappable.
+			You cannot use these, but they might show up in some
+			places.
 
 If Visual mode is not active and the "v", "V" or CTRL-V is preceded with a
 count, the size of the previously highlighted area is used for a start.  You
@@ -235,7 +241,7 @@ The objects that can be used are:
 	is	inner sentence					|v_is|
 	ap	a paragraph (with white space)			|v_ap|
 	ip	inner paragraph					|v_ip|
-	ab	a () block (with parenthesis)			|v_ab|
+	ab	a () block (with parentheses)			|v_ab|
 	ib	inner () block					|v_ib|
 	aB	a {} block (with braces)			|v_aB|
 	iB	inner {} block					|v_iB|
@@ -264,6 +270,7 @@ Additionally the following commands can be used:
 	X	delete (2)					|v_X|
 	Y	yank (2)					|v_Y|
 	p	put						|v_p|
+	P	put without overwriting registers		|v_P|
 	J	join (1)					|v_J|
 	U	make uppercase					|v_U|
 	u	make lowercase					|v_u|
@@ -305,8 +312,6 @@ mode.
 ==============================================================================
 5. Blockwise operators					*blockwise-operators*
 
-{not available when compiled without the |+visualextra| feature}
-
 Reminder: Use 'virtualedit' to be able to select blocks that start or end
 after the end of a line or halfway a tab.
 
@@ -314,8 +319,8 @@ Visual-block Insert						*v_b_I*
 With a blockwise selection, I{string}<ESC> will insert {string} at the start
 of block on every line of the block, provided that the line extends into the
 block.  Thus lines that are short will remain unmodified.  TABs are split to
-retain visual columns.
-See |v_b_I_example|.
+retain visual columns.  Works only for adding text to a line, not for
+deletions.  See |v_b_I_example|.
 
 Visual-block Append						*v_b_A*
 With a blockwise selection, A{string}<ESC> will append {string} to the end of
@@ -331,6 +336,7 @@ See |v_b_A_example|.
 Note: "I" and "A" behave differently for lines that don't extend into the
 selected block.  This was done intentionally, so that you can do it the way
 you want.
+Works only for adding text to a line, not for deletions.
 
 Visual-block change						*v_b_c*
 All selected text in the block will be replaced by the same text string.  When
@@ -347,7 +353,7 @@ Visual-block Shift						*v_b_>*
 The block is shifted by 'shiftwidth'.  The RHS of the block is irrelevant.  The
 LHS of the block determines the point from which to apply a right shift, and
 padding includes TABs optimally according to 'ts' and 'et'.  The LHS of the
-block determines the point upto which to shift left.
+block determines the point up to which to shift left.
 See |v_b_>_example|.
 See |v_b_<_example|.
 
@@ -370,7 +376,8 @@ same amount of text as the last time:
   last line the same number of characters as in the last line the last time.
 The start of the text is the Cursor position.  If the "$" command was used as
 one of the last commands to extend the highlighted text, the repeating will
-be applied up to the rightmost column of the longest line.
+be applied up to the rightmost column of the longest line.  Any count passed
+to the `.` command is not used.
 
 
 ==============================================================================
@@ -429,7 +436,7 @@ abcdefghijklmnopqrstuvwxyz
 
 abcdefghijklmnSTRINGopqrstuvwxyz
 abc	      STRING  defghijklmnopqrstuvwxyz
-abcdef  ghi   STRING	jklmnopqrstuvwxyz
+abcdef  ghi   STRING  	jklmnopqrstuvwxyz
 abcdefghijklmnSTRINGopqrstuvwxyz
 
 2. fo<C-v>3j$ASTRING<ESC>					*v_b_A_example*
@@ -487,6 +494,11 @@ Commands in Select mode:
 - ESC stops Select mode.
 - CTRL-O switches to Visual mode for the duration of one command. *v_CTRL-O*
 - CTRL-G switches to Visual mode.
+- CTRL-R {register} selects the register to be used for the text that is
+  deleted when typing text.					  *v_CTRL-R*
+  Unless you specify the "_" (black hole) register, the unnamed register is
+  also overwritten.
+
 
 Otherwise, typed characters are handled as in Visual mode.
 
@@ -502,6 +514,13 @@ work both in Visual mode and in Select mode.  When these are used in Select
 mode Vim automatically switches to Visual mode, so that the same behavior as
 in Visual mode is effective.  If you don't want this use |:xmap| or |:smap|.
 
+One particular edge case: >
+	:vnoremap <C-K> <Esc>
+This ends Visual mode when in Visual mode, but in Select mode it does not
+work, because Select mode is restored after executing the mapped keys.  You
+need to use: >
+	:snoremap <C-K> <Esc>
+<
 Users will expect printable characters to replace the selected area.
 Therefore avoid mapping printable characters in Select mode.  Or use
 |:sunmap|  after |:map| and |:vmap| to remove it for Select mode.
@@ -537,4 +556,4 @@ g CTRL-H		Start Select mode, blockwise.  This is like CTRL-V,
 			but starts Select mode instead of Visual mode.
 			Mnemonic: "get Highlighted".
 
- vim:tw=78:ts=8:ft=help:norl:
+ vim:tw=78:ts=8:noet:ft=help:norl:

@@ -1,132 +1,273 @@
-" Vim syntax file
-" Language:	MetaPost
-" Maintainer:	Andreas Scherer <andreas.scherer@pobox.com>
-" Last Change:	April 30, 2001
+vim9script
 
-" For version 5.x: Clear all syntax items
-" For version 6.x: Quit when a syntax file was already loaded
-if version < 600
-  syn clear
-elseif exists("b:current_syntax")
+# Vim syntax file
+# Language:           MetaPost
+# Maintainer:         Nicola Vitacolonna <nvitacolonna@gmail.com>
+# Former Maintainers: Andreas Scherer <andreas.scherer@pobox.com>
+# Latest Revision:    2022 Aug 12
+
+if exists("b:current_syntax")
   finish
 endif
 
-let plain_mf_macros = 0 " plain.mf has no special meaning for MetaPost
-let other_mf_macros = 0 " cmbase.mf, logo.mf, ... neither
+# Deprecation warnings: to be removed eventually
+if exists("g:plain_mp_macros")
+  echomsg "[mp] g:plain_mp_macros is deprecated: use g:mp_plain_macros instead."
+endif
+if exists("mfplain_mp_macros")
+  echomsg "[mp] g:mfplain_mp_macros is deprecated: use g:mp_mfplain_macros instead."
+endif
+if exists("other_mp_macros")
+  echomsg "[mp] g:other_mp_macros is deprecated: use g:mp_other_macros instead."
+endif
 
-" Read the Metafont syntax to start with
-if version < 600
-  source <sfile>:p:h/mf.vim
+# Store the current values of METAFONT global options
+const mf_plain_macros = get(g:, "mf_plain_macros", get(g:, "plain_mf_macros", -1))
+const mf_plain_modes  = get(g:, "mf_plain_modes",  get(g:, "plain_mf_modes",  -1))
+const mf_other_macros = get(g:, "mf_other_macros", get(g:, "other_mf_macros", -1))
+
+g:mf_plain_macros = 0 # plain.mf has no special meaning for MetaPost
+g:mf_plain_modes  = 0 # No METAFONT modes
+g:mf_other_macros = 0 # cmbase.mf, logo.mf, ... neither
+
+# Read the METAFONT syntax to start with
+runtime! syntax/mf.vim
+unlet b:current_syntax # Necessary for syn include below
+
+# Restore the value of existing global variables
+if mf_plain_macros == -1
+  unlet g:mf_plain_macros
 else
-  runtime! syntax/mf.vim
+  g:plain_mf_macros = mf_plain_macros
+endif
+if mf_plain_modes == -1
+  unlet g:mf_plain_modes
+else
+  g:mf_plain_modes = mf_plain_modes
+endif
+if mf_other_macros == -1
+  unlet g:mf_other_macros
+else
+  g:mf_other_macros = mf_other_macros
 endif
 
-" MetaPost has TeX inserts for typeset labels
-" verbatimtex, btex, and etex will be treated as keywords
-syn match mpTeXbegin "\(verbatimtex\|btex\)"
-syn match mpTeXend "etex"
-syn region mpTeXinsert start="\(verbatimtex\|btex\)"hs=e+1 end="etex"he=s-1 contains=mpTeXbegin,mpTeXend keepend
+# Use TeX highlighting inside verbatimtex/btex... etex
+syn include @MPTeX syntax/tex.vim
+unlet b:current_syntax
+# These are defined as keywords rather than using matchgroup
+# in order to make them available to syntaxcomplete.
+syn keyword mpTeXdelim       btex etex verbatimtex contained
+syn region mpTeXinsert matchgroup=mpTeXdelim start=/\<verbatimtex\>\|\<btex\>/ end=/\<etex\>/ keepend contains=@MPTeX,mpTeXdelim
 
-" MetaPost primitives not found in Metafont
-syn keyword mpInternal bluepart clip color dashed fontsize greenpart infont
-syn keyword mpInternal linecap linejoin llcorner lrcorner miterlimit mpxbreak
-syn keyword mpInternal prologues redpart setbounds tracinglostchars
-syn keyword mpInternal truecorners ulcorner urcorner withcolor
+# iskeyword must be set after the syn include above, because tex.vim sets `syn
+# iskeyword`. Note that keywords do not contain numbers (numbers are
+# subscripts)
+syntax iskeyword @,_
 
-" Metafont primitives not found in MetaPost
-syn keyword notDefined autorounding chardx chardy fillin granularity hppp
-syn keyword notDefined proofing smoothing tracingedges tracingpens
-syn keyword notDefined turningcheck vppp xoffset yoffset
+# MetaPost primitives not found in METAFONT
+syn keyword mpBoolExp        bounded clipped filled stroked textual arclength
+syn keyword mpNumExp         arctime blackpart bluepart colormodel cyanpart
+syn keyword mpNumExp         fontsize greenpart greypart magentapart redpart
+syn keyword mpPairExp        yellowpart llcorner lrcorner ulcorner urcorner
+syn keyword mpPathExp        envelope pathpart
+syn keyword mpPenExp         penpart
+syn keyword mpPicExp         dashpart glyph infont
+syn keyword mpStringExp      fontpart readfrom textpart
+syn keyword mpType           cmykcolor color rgbcolor
+# Other MetaPost primitives listed in the manual
+syn keyword mpPrimitive      mpxbreak within
+# Internal quantities not found in METAFONT
+# (Table 6 in MetaPost: A User's Manual)
+syn keyword mpInternal       defaultcolormodel hour minute linecap linejoin
+syn keyword mpInternal       miterlimit mpprocset mpversion numberprecision
+syn keyword mpInternal       numbersystem outputfilename outputformat
+syn keyword mpInternal       outputformatoptions outputtemplate prologues
+syn keyword mpInternal       restoreclipcolor tracinglostchars troffmode
+syn keyword mpInternal       truecorners
+# List of commands not found in METAFONT (from MetaPost: A User's Manual)
+syn keyword mpCommand        clip closefrom dashed filenametemplate fontmapfile
+syn keyword mpCommand        fontmapline setbounds withcmykcolor withcolor
+syn keyword mpCommand        withgreyscale withoutcolor withpostscript
+syn keyword mpCommand        withprescript withrgbcolor write
+# METAFONT internal variables not found in MetaPost
+syn keyword notDefined       autorounding chardx chardy fillin granularity
+syn keyword notDefined       proofing smoothing tracingedges tracingpens
+syn keyword notDefined       turningcheck xoffset yoffset
+# Suffix defined only in METAFONT:
+syn keyword notDefined       nodot
+# Other not implemented primitives (see MetaPost: A User's Manual, §C.1)
+syn keyword notDefined       cull display openwindow numspecial totalweight
+syn keyword notDefined       withweight
 
-" Keywords defined by plain.mp
-if !exists("plain_mp_macros")
-  let plain_mp_macros = 1 " Set this to '0' if your source gets too colourful
-endif
-if plain_mp_macros
-  syn keyword mpMacro ahangle ahlength background bbox bboxmargin beginfig
-  syn keyword mpMacro beveled black blue buildcycle butt center cutafter
-  syn keyword mpMacro cutbefore cuttings dashpattern defaultfont defaultpen
-  syn keyword mpMacro defaultscale dotlabel dotlabels drawarrow drawdblarrow
-  syn keyword mpMacro drawoptions endfig evenly extra_beginfig extra_endfig
-  syn keyword mpMacro green label labeloffset mitered red rounded squared
-  syn keyword mpMacro thelabel white base_name base_version
-  syn keyword mpMacro upto downto exitunless relax gobble gobbled
-  syn keyword mpMacro interact loggingall tracingall tracingnone
-  syn keyword mpMacro eps epsilon infinity right left up down origin
-  syn keyword mpMacro quartercircle halfcircle fullcircle unitsquare identity
-  syn keyword mpMacro blankpicture withdots ditto EOF pensquare penrazor
-  syn keyword mpMacro penspeck whatever abs round ceiling byte dir unitvector
-  syn keyword mpMacro inverse counterclockwise tensepath mod div dotprod
-  syn keyword mpMacro takepower direction directionpoint intersectionpoint
-  syn keyword mpMacro softjoin incr decr reflectedabout rotatedaround
-  syn keyword mpMacro rotatedabout min max flex superellipse interpath
-  syn keyword mpMacro magstep currentpen currentpen_path currentpicture
-  syn keyword mpMacro fill draw filldraw drawdot unfill undraw unfilldraw
-  syn keyword mpMacro undrawdot erase cutdraw image pickup numeric_pickup
-  syn keyword mpMacro pen_lft pen_rt pen_top pen_bot savepen clearpen
-  syn keyword mpMacro clear_pen_memory lft rt top bot ulft urt llft lrt
-  syn keyword mpMacro penpos penstroke arrowhead makelabel labels penlabel
-  syn keyword mpMacro range numtok thru clearxy clearit clearpen pickup
-  syn keyword mpMacro shipit bye hide stop solve
-endif
-
-" Keywords defined by mfplain.mp
-if !exists("mfplain_mp_macros")
-  let mfplain_mp_macros = 0 " Set this to '1' to include these macro names
-endif
-if mfplain_mp_macros
-  syn keyword mpMacro beginchar blacker capsule_def change_width
-  syn keyword mpMacro define_blacker_pixels define_corrected_pixels
-  syn keyword mpMacro define_good_x_pixels define_good_y_pixels
-  syn keyword mpMacro define_horizontal_corrected_pixels
-  syn keyword mpMacro define_pixels define_whole_blacker_pixels
-  syn keyword mpMacro define_whole_vertical_blacker_pixels
-  syn keyword mpMacro define_whole_vertical_pixels endchar
-  syn keyword mpMacro extra_beginchar extra_endchar extra_setup
-  syn keyword mpMacro font_coding_scheme font_extra_space font_identifier
-  syn keyword mpMacro font_normal_shrink font_normal_space
-  syn keyword mpMacro font_normal_stretch font_quad font_size
-  syn keyword mpMacro font_slant font_x_height italcorr labelfont
-  syn keyword mpMacro makebox makegrid maketicks mode_def mode_setup
-  syn keyword mpMacro o_correction proofrule proofrulethickness rulepen smode
-
-  " plus some no-ops, also from mfplain.mp
-  syn keyword mpMacro cullit currenttransform gfcorners grayfont hround
-  syn keyword mpMacro imagerules lowres_fix nodisplays notransforms openit
-  syn keyword mpMacro proofoffset screenchars screenrule screenstrokes
-  syn keyword mpMacro showit slantfont titlefont unitpixel vround
-endif
-
-" Keywords defined by other macro packages, e.g., boxes.mp
-if !exists("other_mp_macros")
-  let other_mp_macros = 1 " Set this to '0' if your source gets too colourful
-endif
-if other_mp_macros
-  syn keyword mpMacro circmargin defaultdx defaultdy
-  syn keyword mpMacro boxit boxjoin bpath circleit drawboxed drawboxes
-  syn keyword mpMacro drawunboxed fixpos fixsize pic
-endif
-
-" Define the default highlighting
-" For version 5.7 and earlier: only when not done already
-" For version 5.8 and later: only when an item doesn't have highlighting yet
-if version >= 508 || !exists("did_mp_syntax_inits")
-  if version < 508
-    let did_mp_syntax_inits = 1
-    command -nargs=+ HiLink hi link <args>
-  else
-    command -nargs=+ HiLink hi def link <args>
-  endif
-
-  HiLink mpTeXinsert	String
-  HiLink mpTeXbegin	Statement
-  HiLink mpTeXend	Statement
-  HiLink mpInternal	mfInternal
-  HiLink mpMacro	Macro
-
-  delcommand HiLink
+# Keywords defined by plain.mp
+if get(g:, "mp_plain_macros", get(g:, "plain_mp_macros", 1)) || get(b:, "mp_metafun", get(g:, "mp_metafun", 0))
+  syn keyword mpDef          beginfig clear_pen_memory clearit clearpen clearpen
+  syn keyword mpDef          clearxy colorpart cutdraw downto draw drawarrow
+  syn keyword mpDef          drawdblarrow drawdot drawoptions endfig erase
+  syn keyword mpDef          exitunless fill filldraw flex gobble hide interact
+  syn keyword mpDef          label loggingall makelabel numtok penstroke pickup
+  syn keyword mpDef          range reflectedabout rotatedaround shipit
+  syn keyword mpDef          stop superellipse takepower tracingall tracingnone
+  syn keyword mpDef          undraw undrawdot unfill unfilldraw upto
+  syn match   mpDef          "???"
+  syn keyword mpVardef       arrowhead bbox bot buildcycle byte ceiling center
+  syn keyword mpVardef       counterclockwise decr dir direction directionpoint
+  syn keyword mpVardef       dotlabel dotlabels image incr interpath inverse
+  syn keyword mpVardef       labels lft magstep max min penlabels penpos round
+  syn keyword mpVardef       rt savepen solve tensepath thelabel top unitvector
+  syn keyword mpVardef       whatever z
+  syn keyword mpPrimaryDef   div dotprod gobbled mod
+  syn keyword mpSecondaryDef intersectionpoint
+  syn keyword mpTertiaryDef  cutafter cutbefore softjoin thru
+  syn keyword mpNewInternal  ahangle ahlength bboxmargin beveled butt defaultpen
+  syn keyword mpNewInternal  defaultscale dotlabeldiam eps epsilon infinity
+  syn keyword mpNewInternal  join_radius labeloffset mitered pen_bot pen_lft
+  syn keyword mpNewInternal  pen_rt pen_top rounded squared tolerance
+  # Predefined constants
+  syn keyword mpConstant     EOF background base_name base_version black
+  syn keyword mpConstant     blankpicture blue ditto down evenly fullcircle
+  syn keyword mpConstant     green halfcircle identity left origin penrazor
+  syn keyword mpConstant     penspeck pensquare quartercircle red right
+  syn keyword mpConstant     unitsquare up white withdots
+  # Other predefined variables
+  syn keyword mpVariable     currentpen currentpen_path currentpicture cuttings
+  syn keyword mpVariable     defaultfont extra_beginfig extra_endfig
+  syn keyword mpVariable     laboff labxf labyf laboff labxf labyf
+  syn match   mpVariable     /\.\%(lft\|rt\|bot\|top\|ulft\|urt\|llft\|lrt\)\>/
+  # let statements:
+  syn keyword mpnumExp       abs
+  syn keyword mpDef          rotatedabout
+  syn keyword mpCommand      bye relax
+  # on and off are not technically keywords, but it is nice to highlight them
+  # inside dashpattern().
+  syn keyword mpOnOff        off on contained
+  syn keyword mpDash         dashpattern contained
+  syn region  mpDashPattern start="dashpattern\s*" end=")"he=e-1 contains=mfNumeric,mfLength,mpOnOff,mpDash
 endif
 
-let b:current_syntax = "mp"
+# Keywords defined by mfplain.mp
+if get(g:, "mp_mfplain_macros", get(g:, "mfplain_mp_macros", 0))
+  syn keyword mpDef          beginchar capsule_def change_width
+  syn keyword mpDef          define_blacker_pixels define_corrected_pixels
+  syn keyword mpDef          define_good_x_pixels define_good_y_pixels
+  syn keyword mpDef          define_horizontal_corrected_pixels define_pixels
+  syn keyword mpDef          define_whole_blacker_pixels define_whole_pixels
+  syn keyword mpDef          define_whole_vertical_blacker_pixels
+  syn keyword mpDef          define_whole_vertical_pixels endchar
+  syn keyword mpDef          font_coding_scheme font_extra_space font_identifier
+  syn keyword mpDef          font_normal_shrink font_normal_space
+  syn keyword mpDef          font_normal_stretch font_quad font_size font_slant
+  syn keyword mpDef          font_x_height italcorr labelfont lowres_fix makebox
+  syn keyword mpDef          makegrid maketicks mode_def mode_setup proofrule
+  syn keyword mpDef          smode
+  syn keyword mpVardef       hround proofrulethickness vround
+  syn keyword mpNewInternal  blacker o_correction
+  syn keyword mpVariable     extra_beginchar extra_endchar extra_setup rulepen
+  # plus some no-ops, also from mfplain.mp
+  syn keyword mpDef          cull cullit gfcorners imagerules nodisplays
+  syn keyword mpDef          notransforms openit proofoffset screenchars
+  syn keyword mpDef          screenrule screenstrokes showit
+  syn keyword mpVardef       grayfont slantfont titlefont
+  syn keyword mpVariable     currenttransform
+  syn keyword mpConstant     unitpixel
+  # These are not listed in the MetaPost manual, and some are ignored by
+  # MetaPost, but are nonetheless defined in mfplain.mp
+  syn keyword mpDef          killtext
+  syn match   mpVardef       "\<good\.\%(x\|y\|lft\|rt\|top\|bot\)\>"
+  syn keyword mpVariable     aspect_ratio localfont mag mode mode_name
+  syn keyword mpVariable     proofcolor
+  syn keyword mpConstant     lowres proof smoke
+  syn keyword mpNewInternal  autorounding bp_per_pixel granularity
+  syn keyword mpNewInternal  number_of_modes proofing smoothing turningcheck
+endif
 
-" vim: ts=8
+# Keywords defined by all base macro packages:
+# - (r)boxes.mp
+# - format.mp
+# - graph.mp
+# - marith.mp
+# - sarith.mp
+# - string.mp
+# - TEX.mp
+if get(g:, "mp_other_macros", get(g:, "other_mp_macros", 1))
+  # boxes and rboxes
+  syn keyword mpDef          boxjoin drawboxed drawboxes drawunboxed
+  syn keyword mpNewInternal  circmargin defaultdx defaultdy rbox_radius
+  syn keyword mpVardef       boxit bpath circleit fixpos fixsize generic_declare
+  syn keyword mpVardef       generic_redeclare generisize pic rboxit str_prefix
+  # format
+  syn keyword mpVardef       Mformat format init_numbers roundd
+  syn keyword mpVariable     Fe_base Fe_plus
+  syn keyword mpConstant     Ten_to
+  # graph
+  syn keyword mpDef          Gfor Gxyscale OUT auto begingraph endgraph gdata
+  syn keyword mpDef          gdraw gdrawarrow gdrawdblarrow gfill plot
+  syn keyword mpVardef       augment autogrid frame gdotlabel glabel grid itick
+  syn keyword mpVardef       otick
+  syn keyword mpVardef       Mreadpath setcoords setrange
+  syn keyword mpNewInternal  Gmarks Gminlog Gpaths linear log
+  syn keyword mpVariable     Autoform Gemarks Glmarks Gumarks
+  syn keyword mpConstant     Gtemplate
+  syn match   mpVariable     /Gmargin\.\%(low\|high\)/
+  # marith
+  syn keyword mpVardef       Mabs Meform Mexp Mexp_str Mlog Mlog_Str Mlog_str
+  syn keyword mpPrimaryDef   Mdiv Mmul
+  syn keyword mpSecondaryDef Madd Msub
+  syn keyword mpTertiaryDef  Mleq
+  syn keyword mpNewInternal  Mten Mzero
+  # sarith
+  syn keyword mpVardef       Sabs Scvnum
+  syn keyword mpPrimaryDef   Sdiv Smul
+  syn keyword mpSecondaryDef Sadd Ssub
+  syn keyword mpTertiaryDef  Sleq Sneq
+  # string
+  syn keyword mpVardef       cspan isdigit loptok
+  # TEX
+  syn keyword mpVardef       TEX TEXPOST TEXPRE
+endif
+
+if get(b:, "mp_metafun", get(g:, "mp_metafun", 0))
+  # MetaFun additions to MetaPost base file
+  syn keyword mpConstant cyan magenta yellow
+  syn keyword mpConstant penspec
+  syn keyword mpNumExp   graypart greycolor graycolor
+
+  # Highlight TeX keywords (for MetaPost embedded in ConTeXt documents)
+  syn match   mpTeXKeyword  '\\[a-zA-Z@]\+'
+
+  syn keyword mpPrimitive runscript
+
+  runtime! syntax/shared/context-data-metafun.vim
+
+  hi def link metafunCommands   Statement
+  hi def link metafunInternals  Identifier
+endif
+
+# Define the default highlighting
+hi def link mpTeXdelim     mpPrimitive
+hi def link mpBoolExp      mfBoolExp
+hi def link mpNumExp       mfNumExp
+hi def link mpPairExp      mfPairExp
+hi def link mpPathExp      mfPathExp
+hi def link mpPenExp       mfPenExp
+hi def link mpPicExp       mfPicExp
+hi def link mpStringExp    mfStringExp
+hi def link mpInternal     mfInternal
+hi def link mpCommand      mfCommand
+hi def link mpType         mfType
+hi def link mpPrimitive    mfPrimitive
+hi def link mpDef          mfDef
+hi def link mpVardef       mpDef
+hi def link mpPrimaryDef   mpDef
+hi def link mpSecondaryDef mpDef
+hi def link mpTertiaryDef  mpDef
+hi def link mpNewInternal  mpInternal
+hi def link mpVariable     mfVariable
+hi def link mpConstant     mfConstant
+hi def link mpOnOff        mpPrimitive
+hi def link mpDash         mpPrimitive
+hi def link mpTeXKeyword   Identifier
+
+b:current_syntax = "mp"
+
+# vim: sw=2 fdm=marker

@@ -1,4 +1,4 @@
-#!/usr/bin/python
+#!/usr/bin/env python
 #
 # Server that will accept connections from a Vim channel.
 # Used by test_channel.vim.
@@ -19,8 +19,7 @@ except ImportError:
     # Python 2
     import SocketServer as socketserver
 
-class ThreadedTCPRequestHandler(socketserver.BaseRequestHandler):
-
+class TestingRequestHandler(socketserver.BaseRequestHandler):
     def handle(self):
         print("=== socket opened ===")
         while True:
@@ -38,15 +37,15 @@ class ThreadedTCPRequestHandler(socketserver.BaseRequestHandler):
             print("received: {0}".format(received))
 
             # We may receive two messages at once. Take the part up to the
-            # matching "]" (recognized by finding "][").
+            # newline, which should be after the matching "]".
             todo = received
             while todo != '':
-                splitidx = todo.find('][')
+                splitidx = todo.find('\n')
                 if splitidx < 0:
                      used = todo
                      todo = ''
                 else:
-                     used = todo[:splitidx + 1]
+                     used = todo[:splitidx]
                      todo = todo[splitidx + 1:]
                 if used != received:
                     print("using: {0}".format(used))
@@ -62,6 +61,39 @@ class ThreadedTCPRequestHandler(socketserver.BaseRequestHandler):
                     if decoded[1] == 'hello!':
                         # simply send back a string
                         response = "got it"
+                    elif decoded[1] == 'malformed1':
+                        cmd = '["ex",":"]wrong!["ex","smi"]'
+                        print("sending: {0}".format(cmd))
+                        self.request.sendall(cmd.encode('utf-8'))
+                        response = "ok"
+                        # Need to wait for Vim to give up, otherwise it
+                        # sometimes fails on OS X.
+                        time.sleep(0.2)
+                    elif decoded[1] == 'malformed2':
+                        cmd = '"unterminated string'
+                        print("sending: {0}".format(cmd))
+                        self.request.sendall(cmd.encode('utf-8'))
+                        response = "ok"
+                        # Need to wait for Vim to give up, otherwise the double
+                        # quote in the "ok" response terminates the string.
+                        time.sleep(0.2)
+                    elif decoded[1] == 'malformed3':
+                        cmd = '["ex","missing ]"'
+                        print("sending: {0}".format(cmd))
+                        self.request.sendall(cmd.encode('utf-8'))
+                        response = "ok"
+                        # Need to wait for Vim to give up, otherwise the ]
+                        # in the "ok" response terminates the list.
+                        time.sleep(0.2)
+                    elif decoded[1] == 'split':
+                        cmd = '["ex","let '
+                        print("sending: {0}".format(cmd))
+                        self.request.sendall(cmd.encode('utf-8'))
+                        time.sleep(0.01)
+                        cmd = 'g:split = 123"]'
+                        print("sending: {0}".format(cmd))
+                        self.request.sendall(cmd.encode('utf-8'))
+                        response = "ok"
                     elif decoded[1].startswith("echo "):
                         # send back the argument
                         response = decoded[1][5:]
@@ -73,6 +105,16 @@ class ThreadedTCPRequestHandler(socketserver.BaseRequestHandler):
                         print("sending: {0}".format(cmd))
                         self.request.sendall(cmd.encode('utf-8'))
                         response = "ok"
+                    elif decoded[1] == 'echoerr':
+                        cmd = '["ex","echoerr \\\"this is an error\\\""]'
+                        print("sending: {0}".format(cmd))
+                        self.request.sendall(cmd.encode('utf-8'))
+                        response = "ok"
+                        # Wait a bit, so that the "ex" command is handled
+                        # before the "ch_evalexpr() returns.  Otherwise we are
+                        # outside the try/catch when the "ex" command is
+                        # handled.
+                        time.sleep(0.02)
                     elif decoded[1] == 'bad command':
                         cmd = '["ex","foo bar"]'
                         print("sending: {0}".format(cmd))
@@ -118,36 +160,6 @@ class ThreadedTCPRequestHandler(socketserver.BaseRequestHandler):
                     elif decoded[1] == 'eval-bad':
                         # Send an eval request missing the third argument.
                         cmd = '["expr","xxx"]'
-                        print("sending: {0}".format(cmd))
-                        self.request.sendall(cmd.encode('utf-8'))
-                        response = "ok"
-                    elif decoded[1] == 'malformed1':
-                        cmd = '["ex",":"]wrong!["ex","smi"]'
-                        print("sending: {0}".format(cmd))
-                        self.request.sendall(cmd.encode('utf-8'))
-                        response = "ok"
-                    elif decoded[1] == 'malformed2':
-                        cmd = '"unterminated string'
-                        print("sending: {0}".format(cmd))
-                        self.request.sendall(cmd.encode('utf-8'))
-                        response = "ok"
-                        # Need to wait for Vim to give up, otherwise the double
-                        # quote in the "ok" response terminates the string.
-                        time.sleep(0.2)
-                    elif decoded[1] == 'malformed3':
-                        cmd = '["ex","missing ]"'
-                        print("sending: {0}".format(cmd))
-                        self.request.sendall(cmd.encode('utf-8'))
-                        response = "ok"
-                        # Need to wait for Vim to give up, otherwise the ]
-                        # in the "ok" response terminates the list.
-                        time.sleep(0.2)
-                    elif decoded[1] == 'split':
-                        cmd = '["ex","let '
-                        print("sending: {0}".format(cmd))
-                        self.request.sendall(cmd.encode('utf-8'))
-                        time.sleep(0.01)
-                        cmd = 'g:split = 123"]'
                         print("sending: {0}".format(cmd))
                         self.request.sendall(cmd.encode('utf-8'))
                         response = "ok"
@@ -223,6 +235,10 @@ class ThreadedTCPRequestHandler(socketserver.BaseRequestHandler):
                 elif decoded[0] < 0:
                     last_eval = decoded
 
+class ThreadedTCPRequestHandler(TestingRequestHandler):
+    def setup(self):
+        self.request.setsockopt(socket.IPPROTO_TCP, socket.TCP_NODELAY, 1)
+
 class ThreadedTCPServer(socketserver.ThreadingMixIn, socketserver.TCPServer):
     pass
 
@@ -232,21 +248,24 @@ def writePortInFile(port):
     f.write("{0}".format(port))
     f.close()
 
-if __name__ == "__main__":
-    HOST, PORT = "localhost", 0
-
+def main(host, port, server_class=ThreadedTCPServer):
     # Wait half a second before opening the port to test waittime in ch_open().
     # We do want to get the port number, get that first.  We cannot open the
     # socket, guess a port is free.
     if len(sys.argv) >= 2 and sys.argv[1] == 'delay':
-        PORT = 13684
-        writePortInFile(PORT)
+        port = 13684
+        writePortInFile(port)
 
         print("Wait for it...")
         time.sleep(0.5)
 
-    server = ThreadedTCPServer((HOST, PORT), ThreadedTCPRequestHandler)
-    ip, port = server.server_address
+    addrs = socket.getaddrinfo(host, port, 0, 0, socket.IPPROTO_TCP)
+    # Each addr is a (family, type, proto, canonname, sockaddr) tuple
+    sockaddr = addrs[0][4]
+    server_class.address_family = addrs[0][0]
+
+    server = server_class(sockaddr[0:2], ThreadedTCPRequestHandler)
+    ip, port = server.server_address[0:2]
 
     # Start a thread with the server.  That thread will then start a new thread
     # for each connection.
@@ -260,7 +279,10 @@ if __name__ == "__main__":
     # Main thread terminates, but the server continues running
     # until server.shutdown() is called.
     try:
-        while server_thread.isAlive(): 
+        while server_thread.is_alive():
             server_thread.join(1)
     except (KeyboardInterrupt, SystemExit):
         server.shutdown()
+
+if __name__ == "__main__":
+    main("localhost", 0)

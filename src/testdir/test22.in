@@ -1,13 +1,15 @@
-Tests for file with some lines ending in CTRL-M, some not
+Tests for complicated + argument to :edit command
 
 STARTTEST
-:set ta tx
-:e!
-:$-3,$w! test.out
+:$-1w! Xfile1
+:$w! Xfile2
+:edit +1|s/|/PIPE/|w Xfile1| e Xfile2|1 | s/\//SLASH/|w
+:w! test.out
+:e Xfile1
+:w >> test.out
 :qa!
 ENDTEST
 
-this lines ends in a
-this one doesn't
-this one does
-and the last one doesn't
+The result should be in Xfile1: "fooPIPEbar", in Xfile2: "fooSLASHbar"
+foo|bar
+foo/bar

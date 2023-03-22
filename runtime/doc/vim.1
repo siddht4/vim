@@ -1,6 +1,6 @@
-.TH VIM 1 "2006 Apr 11"
+.TH VIM 1 "2021 Jun 13"
 .SH NAME
-vim \- Vi IMproved, a programmers text editor
+vim \- Vi IMproved, a programmer's text editor
 .SH SYNOPSIS
 .br
 .B vim
@@ -108,8 +108,8 @@ Go to Normal mode with the ":vi" command.
 Can also be done with the "\-e" argument.
 .TP
 view
-Start in read-only mode.  You will be protected from writing the files.  Can
-also be done with the "\-R" argument.
+Start in read-only mode.  You will be protected from writing the files.
+Can also be done with the "\-R" argument.
 .TP
 gvim gview
 The GUI version.
@@ -142,12 +142,11 @@ See ":help search\-pattern" for the available search patterns.
 +{command}
 .TP
 \-c {command}
-{command} will be executed after the
-first file has been read.
+{command} will be executed after the first file has been read.
 {command} is interpreted as an Ex command.
 If the {command} contains spaces it must be enclosed in double quotes (this
 depends on the shell that is used).
-Example: Vim "+set si" main.c
+Example: vim "+set si" main.c
 .br
 Note: You can use up to 10 "+" or "\-c" commands.
 .TP
@@ -187,7 +186,7 @@ behave mostly like Vi, even though a .vimrc file exists.
 .TP
 \-d
 Start in diff mode.
-There should be two, three or four file name arguments.
+There should between two to eight file name arguments.
 .B Vim
 will open all the files and show differences between them.
 Works like vimdiff(1).
@@ -267,7 +266,7 @@ Otherwise an error message is given and
 aborts.
 .TP
 \-i {viminfo}
-When using the viminfo file is enabled, this option sets the filename to use,
+Specifies the filename to use when reading or writing the viminfo file,
 instead of the default "~/.viminfo".
 This can also be used to skip the use of the .viminfo file, by giving the name
 "NONE".
@@ -290,7 +289,7 @@ so that changes are not allowed and files can not be written.  Note that these
 options can be set to enable making modifications.
 .TP
 \-N
-No-compatible mode.  Reset the 'compatible' option.
+No-compatible mode.  Resets the 'compatible' option.
 This will make
 .B Vim
 behave a bit better, but less Vi compatible, even though a .vimrc file does
@@ -325,7 +324,7 @@ You can still edit the buffer, but will be prevented from accidentally
 overwriting a file.
 If you do want to overwrite a file, add an exclamation mark to the Ex command,
 as in ":w!".
-The \-R option also implies the \-n option (see below).
+The \-R option also implies the \-n option (see above).
 The 'readonly' option can be reset with ":set noro".
 See ":help 'readonly'".
 .TP
@@ -355,8 +354,7 @@ Tells
 .B Vim
 the name of the terminal you are using.
 Only required when the automatic way doesn't work.
-Should be a terminal known
-to
+Should be a terminal known to
 .B Vim
 (builtin) or defined in the termcap or terminfo file.
 .TP
@@ -418,6 +416,10 @@ Denotes the end of the options.
 Arguments after this will be handled as a file name.
 This can be used to edit a filename that starts with a '\-'.
 .TP
+\-\-clean
+Do not use any personal configuration (vimrc, plugins, etc.).  Useful to see if
+a problem reproduces with a clean Vim setup.
+.TP
 \-\-echo\-wid
 GTK GUI only: Echo the Window ID on stdout.
 .TP
@@ -460,6 +462,9 @@ Use {name} as the server name.  Used for the current Vim, unless used with a
 .TP
 \-\-socketid {id}
 GTK GUI only: Use the GtkPlug mechanism to run gvim in another window.
+.TP
+\-\-startuptime {file}
+During startup write timing messages to the file {fname}.
 .TP
 \-\-version
 Print version information and exit.
